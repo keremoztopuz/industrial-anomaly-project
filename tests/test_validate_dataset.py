@@ -1,9 +1,12 @@
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 from PIL import Image
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.validate_dataset import validate_dataset
 
