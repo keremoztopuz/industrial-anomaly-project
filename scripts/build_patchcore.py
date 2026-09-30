@@ -34,6 +34,8 @@ def main():
     categories = [args.category] if args.category else sorted({
         sample["category"]["label"] for sample in samples
     })
+    if any(not isinstance(category, str) or not category.isidentifier() for category in categories):
+        parser.error("category names must be safe path components")
     model = PatchCore(args.device, args.max_patches, args.projection_dim, args.seed)
     for category in categories:
         dataset = MVTecDataset(args.dataset_root, category, "train", args.image_size)
