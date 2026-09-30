@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "rev": 3,
+  "savedAt": "2026-09-30T14:44:07.100Z",
+  "id": "project-jp26zs",
+  "name": "industrial-anomaly-mlops",
+  "color": "#bf5af2",
+  "viewport": {
+    "x": -90,
+    "y": -495,
+    "zoom": 1
+  },
+  "nodes": [
+    {
+      "id": "term-muo7uf4f-12549ba3",
+      "kind": "terminal",
+      "position": {
+        "x": 170,
+        "y": 575
+      },
+      "size": {
+        "width": 640,
+        "height": 440
+      },
+      "title": "Codex",
+      "titleAuto": true,
+      "color": "#10a37f",
+      "group": null,
+      "tags": [],
+      "cwd": ".",
+      "agentId": "codex"
+    }
+  ],
+  "bridges": [],
+  "ropes": []
+}
