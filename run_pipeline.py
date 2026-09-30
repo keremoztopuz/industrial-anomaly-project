@@ -1,4 +1,4 @@
-"""Run PatchCore and anomaly evaluation for every MVTec category."""
+"""Run PatchCore and anomaly evaluation for one or all MVTec categories."""
 
 import argparse
 import json
@@ -45,11 +45,16 @@ def run_category(category, dataset_root, output_root, image_size, batch_size,
 
 @flow(name="mvtec-patchcore")
 def run_pipeline(dataset_root, output_root, image_size=256, batch_size=8,
-                 device="cpu", max_patches=2048, projection_dim=256, seed=42):
+                 device="cpu", max_patches=2048, projection_dim=256, seed=42,
+                 category=None):
     if image_size <= 0 or batch_size <= 0:
         raise ValueError("image_size and batch_size must be positive")
     dataset_root, output_root = Path(dataset_root).resolve(), Path(output_root).resolve()
     categories = categories_from_metadata(dataset_root)
+    if category is not None:
+        if category not in categories:
+            raise ValueError(f"Unknown category: {category}. Available: {', '.join(categories)}")
+        categories = [category]
     output_root.mkdir(parents=True, exist_ok=True)
     results = {
         category: run_category(category, dataset_root, output_root, image_size,
@@ -69,6 +74,7 @@ def main():
                         default=Path(__file__).resolve().parent / "data/mvtec-ad")
     parser.add_argument("--output-root", type=Path,
                         default=Path(__file__).resolve().parent / "artifacts")
+    parser.add_argument("--category", help="Run one category; omit to run all categories")
     parser.add_argument("--image-size", type=int, default=256)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--device", default="cpu")
