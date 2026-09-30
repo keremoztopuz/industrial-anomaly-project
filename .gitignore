@@ -1,2 +1,4 @@
 .venv/
+.venv-py39/
+__pycache__/
 data/mvtec-ad/
