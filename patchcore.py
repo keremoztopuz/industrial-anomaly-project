@@ -14,24 +14,29 @@ class PatchCore:
 
     Random priority sampling bounds the memory bank; optional farthest-first
     selection picks a coreset from a larger random candidate pool. Each feature map
-    is averaged over a square ``neighborhood`` (1 disables aggregation).
+    is averaged over a square ``neighborhood`` (1 disables aggregation). Image
+    scores ignore ``border`` outer patch rings, whose padded features are far
+    from the bank even for normal images; anomaly maps keep every patch.
     Use a separate saved bank for each MVTec category; no loss or optimizer is used.
     """
 
     def __init__(self, device="cpu", max_patches=2048, projection_dim=256, seed=42,
-                 selection="random", neighborhood=1):
+                 selection="random", neighborhood=1, border=0):
         if max_patches < 1 or projection_dim < 1:
             raise ValueError("max_patches and projection_dim must be positive")
         if selection not in ("random", "coreset"):
             raise ValueError("selection must be 'random' or 'coreset'")
         if neighborhood < 1 or neighborhood % 2 == 0:
             raise ValueError("neighborhood must be a positive odd integer")
+        if border < 0:
+            raise ValueError("border must be nonnegative")
         self.device = torch.device(device)
         self.max_patches = max_patches
         self.projection_dim = projection_dim
         self.seed = seed
         self.selection = selection
         self.neighborhood = neighborhood
+        self.border = border
         model = wide_resnet50_2(weights=Wide_ResNet50_2_Weights.IMAGENET1K_V2)
         self.backbone = create_feature_extractor(
             model, return_nodes={"layer2": "layer2", "layer3": "layer3"}
@@ -105,7 +110,11 @@ class PatchCore:
             torch.cdist(chunk, bank).min(dim=1).values
             for chunk in patches.split(1024)
         ]).reshape(batch_size, 1, patch_height, patch_width)
-        scores = distances.flatten(1).amax(dim=1)
+        if 2 * self.border >= min(patch_height, patch_width):
+            raise ValueError("border leaves no patches for image scores")
+        inner = distances[..., self.border:patch_height - self.border,
+                          self.border:patch_width - self.border]
+        scores = inner.flatten(1).amax(dim=1)
         maps = F.interpolate(distances, size=images.shape[-2:], mode="bilinear", align_corners=False)
         return scores.cpu(), maps[:, 0].cpu()
 
@@ -120,6 +129,7 @@ class PatchCore:
             "seed": self.seed,
             "selection": self.selection,
             "neighborhood": self.neighborhood,
+            "border": self.border,
             "projection": self.projection.cpu(),
             "memory_bank": self.memory_bank,
         }, path)
@@ -129,7 +139,7 @@ class PatchCore:
         state = torch.load(path, map_location="cpu", weights_only=True)
         model = cls(device, state["max_patches"], state["projection_dim"],
                     state["seed"], state.get("selection", "random"),
-                    state.get("neighborhood", 1))
+                    state.get("neighborhood", 1), state.get("border", 0))
         model.projection = state["projection"].to(model.device)
         model.memory_bank = state["memory_bank"]
         return model
