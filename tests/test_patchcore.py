@@ -142,5 +142,46 @@ class PatchCoreNeighborhoodTests(unittest.TestCase):
         self.assertEqual(old.neighborhood, 1)
 
 
+class PatchCoreBorderTests(unittest.TestCase):
+    def predict(self, border):
+        model = make_model(max_patches=1, projection_dim=1, border=border)
+        model.memory_bank = torch.zeros(1, 1)
+        features = torch.zeros(1, 4, 4, 1)
+        features[0, 0, 0] = 9.0
+        features[0, 1, 2] = 2.0
+        model._embed = lambda images: features
+        return model.predict(torch.zeros(1, 3, 8, 8))
+
+    def test_rejects_negative_border(self):
+        with self.assertRaises(ValueError):
+            make_model(border=-1)
+
+    def test_border_excludes_outer_ring_from_image_score(self):
+        scores, maps = self.predict(border=0)
+        self.assertAlmostEqual(float(scores[0]), 9.0, places=5)
+        scores, border_maps = self.predict(border=1)
+        self.assertAlmostEqual(float(scores[0]), 2.0, places=5)
+        self.assertTrue(torch.equal(maps, border_maps))
+
+    def test_border_must_leave_patches(self):
+        with self.assertRaises(ValueError):
+            self.predict(border=2)
+
+    def test_save_load_preserves_border(self):
+        model = make_model(max_patches=4, projection_dim=4, border=2)
+        model.fit(loader(torch.randn(20, 4)))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bank.pt"
+            model.save(path)
+            state = torch.load(path, weights_only=True)
+            del state["border"]
+            old_path = Path(directory) / "old.pt"
+            torch.save(state, old_path)
+            with no_backbone():
+                loaded, old = PatchCore.load(path), PatchCore.load(old_path)
+        self.assertEqual(loaded.border, 2)
+        self.assertEqual(old.border, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

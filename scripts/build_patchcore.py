@@ -27,6 +27,8 @@ def main():
     parser.add_argument("--selection", choices=("random", "coreset"), default="random")
     parser.add_argument("--neighborhood", type=int, default=1,
                         help="Odd feature-averaging window; PatchCore uses 3")
+    parser.add_argument("--border", type=int, default=0,
+                        help="Outer patch rings ignored by image scores")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else
                         "mps" if torch.backends.mps.is_available() else "cpu")
     args = parser.parse_args()
@@ -40,7 +42,7 @@ def main():
     if any(not isinstance(category, str) or not category.isidentifier() for category in categories):
         parser.error("category names must be safe path components")
     model = PatchCore(args.device, args.max_patches, args.projection_dim, args.seed,
-                      args.selection, args.neighborhood)
+                      args.selection, args.neighborhood, args.border)
     for category in categories:
         dataset = MVTecDataset(args.dataset_root, category, "train", args.image_size)
         loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
