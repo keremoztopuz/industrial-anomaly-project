@@ -1,4 +1,4 @@
-"""Normal-only PatchCore with random or coreset patch selection."""
+"""Normal-only PatchCore with local patch aggregation and random or coreset selection."""
 
 from math import sqrt
 from pathlib import Path
@@ -13,21 +13,25 @@ class PatchCore:
     """Score patches against normal features from an ImageNet-pretrained backbone.
 
     Random priority sampling bounds the memory bank; optional farthest-first
-    selection picks a coreset from a larger random candidate pool.
+    selection picks a coreset from a larger random candidate pool. Each feature map
+    is averaged over a square ``neighborhood`` (1 disables aggregation).
     Use a separate saved bank for each MVTec category; no loss or optimizer is used.
     """
 
     def __init__(self, device="cpu", max_patches=2048, projection_dim=256, seed=42,
-                 selection="random"):
+                 selection="random", neighborhood=1):
         if max_patches < 1 or projection_dim < 1:
             raise ValueError("max_patches and projection_dim must be positive")
         if selection not in ("random", "coreset"):
             raise ValueError("selection must be 'random' or 'coreset'")
+        if neighborhood < 1 or neighborhood % 2 == 0:
+            raise ValueError("neighborhood must be a positive odd integer")
         self.device = torch.device(device)
         self.max_patches = max_patches
         self.projection_dim = projection_dim
         self.seed = seed
         self.selection = selection
+        self.neighborhood = neighborhood
         model = wide_resnet50_2(weights=Wide_ResNet50_2_Weights.IMAGENET1K_V2)
         self.backbone = create_feature_extractor(
             model, return_nodes={"layer2": "layer2", "layer3": "layer3"}
@@ -43,6 +47,12 @@ class PatchCore:
     @torch.inference_mode()
     def _embed(self, images):
         features = self.backbone(images.to(self.device))
+        if self.neighborhood > 1:
+            features = {
+                name: F.avg_pool2d(value, self.neighborhood, stride=1,
+                                   padding=self.neighborhood // 2, count_include_pad=False)
+                for name, value in features.items()
+            }
         shallow = features["layer2"]
         deep = F.interpolate(features["layer3"], size=shallow.shape[-2:], mode="bilinear", align_corners=False)
         patches = torch.cat((shallow, deep), dim=1).permute(0, 2, 3, 1)
@@ -109,6 +119,7 @@ class PatchCore:
             "projection_dim": self.projection_dim,
             "seed": self.seed,
             "selection": self.selection,
+            "neighborhood": self.neighborhood,
             "projection": self.projection.cpu(),
             "memory_bank": self.memory_bank,
         }, path)
@@ -117,7 +128,8 @@ class PatchCore:
     def load(cls, path, device="cpu"):
         state = torch.load(path, map_location="cpu", weights_only=True)
         model = cls(device, state["max_patches"], state["projection_dim"],
-                    state["seed"], state.get("selection", "random"))
+                    state["seed"], state.get("selection", "random"),
+                    state.get("neighborhood", 1))
         model.projection = state["projection"].to(model.device)
         model.memory_bank = state["memory_bank"]
         return model

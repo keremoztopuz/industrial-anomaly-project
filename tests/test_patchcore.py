@@ -101,5 +101,46 @@ class PatchCoreSelectionTests(unittest.TestCase):
         self.assertEqual(loaded.selection, "random")
 
 
+class PatchCoreNeighborhoodTests(unittest.TestCase):
+    def embed(self, neighborhood, features):
+        with no_backbone():
+            model = PatchCore(projection_dim=4, neighborhood=neighborhood)
+        model.backbone = lambda images: features
+        return model._embed(torch.zeros(1, 3, 8, 8))
+
+    def test_rejects_even_or_nonpositive_neighborhood(self):
+        for neighborhood in (0, 2, -1):
+            with self.assertRaises(ValueError):
+                make_model(neighborhood=neighborhood)
+
+    def test_neighborhood_averages_each_feature_map(self):
+        shallow, deep = torch.randn(1, 512, 4, 4), torch.randn(1, 1024, 2, 2)
+        features = {"layer2": shallow, "layer3": deep}
+        averaged = self.embed(3, features)
+        expected = self.embed(1, {
+            name: torch.nn.functional.avg_pool2d(value, 3, stride=1, padding=1,
+                                                 count_include_pad=False)
+            for name, value in features.items()
+        })
+        self.assertEqual(averaged.shape, (1, 4, 4, 4))
+        self.assertTrue(torch.allclose(averaged, expected, atol=1e-6))
+        self.assertFalse(torch.allclose(averaged, self.embed(1, features)))
+
+    def test_save_load_preserves_neighborhood(self):
+        model = make_model(max_patches=4, projection_dim=4, neighborhood=3)
+        model.fit(loader(torch.randn(20, 4)))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bank.pt"
+            model.save(path)
+            state = torch.load(path, weights_only=True)
+            del state["neighborhood"]
+            old_path = Path(directory) / "old.pt"
+            torch.save(state, old_path)
+            with no_backbone():
+                loaded, old = PatchCore.load(path), PatchCore.load(old_path)
+        self.assertEqual(loaded.neighborhood, 3)
+        self.assertEqual(old.neighborhood, 1)
+
+
 if __name__ == "__main__":
     unittest.main()
