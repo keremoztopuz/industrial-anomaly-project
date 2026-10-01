@@ -27,10 +27,10 @@ def categories_from_metadata(dataset_root):
 
 @task(task_run_name="{category}")
 def run_category(category, dataset_root, output_root, image_size, batch_size,
-                 device, max_patches, projection_dim, seed):
+                 device, max_patches, projection_dim, seed, selection):
     train = MVTecDataset(dataset_root, category, "train", image_size)
     model = PatchCore(device=device, max_patches=max_patches,
-                      projection_dim=projection_dim, seed=seed)
+                      projection_dim=projection_dim, seed=seed, selection=selection)
     model.fit(DataLoader(train, batch_size=batch_size, shuffle=False, num_workers=0))
     model.save(output_root / "patchcore" / f"{category}.pt")
 
@@ -49,7 +49,7 @@ def run_category(category, dataset_root, output_root, image_size, batch_size,
 @flow(name="mvtec-patchcore")
 def run_pipeline(dataset_root, output_root, image_size=256, batch_size=8,
                  device="cpu", max_patches=2048, projection_dim=256, seed=42,
-                 category=None):
+                 category=None, selection="random"):
     if image_size <= 0 or batch_size <= 0:
         raise ValueError("image_size and batch_size must be positive")
     dataset_root, output_root = Path(dataset_root).resolve(), Path(output_root).resolve()
@@ -61,7 +61,8 @@ def run_pipeline(dataset_root, output_root, image_size=256, batch_size=8,
     output_root.mkdir(parents=True, exist_ok=True)
     results = {
         category: run_category(category, dataset_root, output_root, image_size,
-                               batch_size, device, max_patches, projection_dim, seed)
+                               batch_size, device, max_patches, projection_dim, seed,
+                               selection)
         for category in categories
     }
     summary = output_root / "metrics.json"
@@ -100,6 +101,7 @@ def run_pipeline(dataset_root, output_root, image_size=256, batch_size=8,
         "max_patches": max_patches,
         "projection_dim": projection_dim,
         "seed": seed,
+        "selection": selection,
         "metrics_file": summary.name,
         "bank_files": [str(Path("patchcore") / f"{name}.pt") for name in categories],
     }
@@ -123,6 +125,7 @@ def main():
     parser.add_argument("--max-patches", type=int, default=2048)
     parser.add_argument("--projection-dim", type=int, default=256)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--selection", choices=("random", "coreset"), default="random")
     args = parser.parse_args()
     run_pipeline(**vars(args))
 
