@@ -1,4 +1,4 @@
-"""Normal-only PatchCore baseline with a bounded random patch memory bank."""
+"""Normal-only PatchCore with random or coreset patch selection."""
 
 from math import sqrt
 from pathlib import Path
@@ -12,17 +12,22 @@ from torchvision.models.feature_extraction import create_feature_extractor
 class PatchCore:
     """Score patches against normal features from an ImageNet-pretrained backbone.
 
-    Random priority sampling approximates PatchCore's greedy coreset selection.
+    Random priority sampling bounds the memory bank; optional farthest-first
+    selection picks a coreset from a larger random candidate pool.
     Use a separate saved bank for each MVTec category; no loss or optimizer is used.
     """
 
-    def __init__(self, device="cpu", max_patches=2048, projection_dim=256, seed=42):
+    def __init__(self, device="cpu", max_patches=2048, projection_dim=256, seed=42,
+                 selection="random"):
         if max_patches < 1 or projection_dim < 1:
             raise ValueError("max_patches and projection_dim must be positive")
+        if selection not in ("random", "coreset"):
+            raise ValueError("selection must be 'random' or 'coreset'")
         self.device = torch.device(device)
         self.max_patches = max_patches
         self.projection_dim = projection_dim
         self.seed = seed
+        self.selection = selection
         model = wide_resnet50_2(weights=Wide_ResNet50_2_Weights.IMAGENET1K_V2)
         self.backbone = create_feature_extractor(
             model, return_nodes={"layer2": "layer2", "layer3": "layer3"}
@@ -45,22 +50,35 @@ class PatchCore:
 
     @torch.inference_mode()
     def fit(self, loader):
-        """Build a uniform, bounded sample of normal patches from one category."""
+        """Build a bounded bank from normal patches."""
         generator = torch.Generator().manual_seed(self.seed)
         bank = torch.empty((0, self.projection_dim))
         priorities = torch.empty(0)
+        pool_size = self.max_patches * (4 if self.selection == "coreset" else 1)
         for batch in loader:
             if "label" in batch and torch.as_tensor(batch["label"]).any():
                 raise ValueError("fit accepts normal training images only")
             patches = self._embed(batch["image"]).reshape(-1, self.projection_dim).cpu()
             keys = torch.rand(len(patches), generator=generator)
-            keep = torch.topk(keys, min(self.max_patches, len(keys))).indices
+            keep = torch.topk(keys, min(pool_size, len(keys))).indices
             candidates = torch.cat((bank, patches[keep]))
             candidate_keys = torch.cat((priorities, keys[keep]))
-            selected = torch.topk(candidate_keys, min(self.max_patches, len(candidate_keys))).indices
+            selected = torch.topk(candidate_keys, min(pool_size, len(candidate_keys))).indices
             bank, priorities = candidates[selected], candidate_keys[selected]
         if not len(bank):
             raise ValueError("training loader is empty")
+        if self.selection == "coreset" and len(bank) > self.max_patches:
+            vectors = bank.to(self.device)
+            nearest = torch.full((len(vectors),), torch.inf, device=self.device)
+            indices = torch.empty(self.max_patches, dtype=torch.long, device=self.device)
+            choice = torch.zeros((), dtype=torch.long, device=self.device)
+            for index in range(self.max_patches):
+                indices[index] = choice
+                distances = ((vectors - vectors[choice]) ** 2).sum(dim=1)
+                nearest = torch.minimum(nearest, distances)
+                nearest[choice] = -1
+                choice = nearest.argmax()
+            bank = bank[indices.cpu()]
         self.memory_bank = bank
         return self
 
@@ -90,6 +108,7 @@ class PatchCore:
             "max_patches": self.max_patches,
             "projection_dim": self.projection_dim,
             "seed": self.seed,
+            "selection": self.selection,
             "projection": self.projection.cpu(),
             "memory_bank": self.memory_bank,
         }, path)
@@ -97,7 +116,8 @@ class PatchCore:
     @classmethod
     def load(cls, path, device="cpu"):
         state = torch.load(path, map_location="cpu", weights_only=True)
-        model = cls(device, state["max_patches"], state["projection_dim"], state["seed"])
+        model = cls(device, state["max_patches"], state["projection_dim"],
+                    state["seed"], state.get("selection", "random"))
         model.projection = state["projection"].to(model.device)
         model.memory_bank = state["memory_bank"]
         return model
