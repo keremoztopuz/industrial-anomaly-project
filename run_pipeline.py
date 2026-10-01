@@ -69,24 +69,34 @@ def run_pipeline(dataset_root, output_root, image_size=256, batch_size=8,
     temporary.write_text(json.dumps(results, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     temporary.replace(summary)
 
+    source_root = Path(__file__).resolve().parent
     try:
         git = subprocess.run(
-            ["git", "-C", str(Path(__file__).resolve().parent), "rev-parse", "HEAD"],
+            ["git", "-C", str(source_root), "rev-parse", "HEAD"],
             capture_output=True, text=True, check=False,
         )
         git_commit = git.stdout.strip() if git.returncode == 0 else None
+        git_dirty = None
+        if git_commit:
+            status = subprocess.run(
+                ["git", "-C", str(source_root), "status", "--porcelain", "--untracked-files=no"],
+                capture_output=True, text=True, check=False,
+            )
+            if status.returncode == 0:
+                git_dirty = bool(status.stdout.strip())
     except OSError:
-        git_commit = None
+        git_commit = git_dirty = None
     with (dataset_root / "samples.json").open("rb") as file:
         samples_json_sha256 = hashlib.file_digest(file, "sha256").hexdigest()
     manifest = {
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "git_commit": git_commit,
+        "git_dirty": git_dirty,
         "samples_json_sha256": samples_json_sha256,
         "categories": categories,
         "image_size": image_size,
         "batch_size": batch_size,
-        "device": device,
+        "device": str(device),
         "max_patches": max_patches,
         "projection_dim": projection_dim,
         "seed": seed,
