@@ -63,8 +63,8 @@ puanlarıyla yeniden puanlanmasından elde edildi. Bankalar yeniden oluşturulma
 | **Makro ortalama** | **0.9317** | **0.9696** | **0.9754** | **0.9299** | **0.9659** | **0.9770** |
 
 `n` = `neighborhood`. Kenarı dışlamak 15 kategorinin 14'ünde image AUROC'u düşürmedi.
-`neighborhood=1` ile `border=1`'de `pill` 0.9285'ten 0.9247'ye indi. Bu düşüş,
-`border=2`'de ve `neighborhood=3` ile görülmedi. `neighborhood=3`, kenar etkisini bir halka
+`neighborhood=1` ile `pill` 0.9285'ten 0.9247'ye indi (`border` 1 ve 2'de). Bu düşüş
+`neighborhood=3` ile görülmedi. `neighborhood=3`, kenar etkisini bir halka
 daha içeri taşıdığı için `border=2` ile `border=1`'den belirgin şekilde daha iyi sonuç verdi
 (`grid` 0.9106 → 0.9758).
 
