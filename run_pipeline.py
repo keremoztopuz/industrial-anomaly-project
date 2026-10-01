@@ -1,7 +1,10 @@
 """Run PatchCore and anomaly evaluation for one or all MVTec categories."""
 
 import argparse
+import hashlib
 import json
+import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 
 import torch
@@ -65,6 +68,35 @@ def run_pipeline(dataset_root, output_root, image_size=256, batch_size=8,
     temporary = summary.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(results, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     temporary.replace(summary)
+
+    try:
+        git = subprocess.run(
+            ["git", "-C", str(Path(__file__).resolve().parent), "rev-parse", "HEAD"],
+            capture_output=True, text=True, check=False,
+        )
+        git_commit = git.stdout.strip() if git.returncode == 0 else None
+    except OSError:
+        git_commit = None
+    with (dataset_root / "samples.json").open("rb") as file:
+        samples_json_sha256 = hashlib.file_digest(file, "sha256").hexdigest()
+    manifest = {
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "git_commit": git_commit,
+        "samples_json_sha256": samples_json_sha256,
+        "categories": categories,
+        "image_size": image_size,
+        "batch_size": batch_size,
+        "device": device,
+        "max_patches": max_patches,
+        "projection_dim": projection_dim,
+        "seed": seed,
+        "metrics_file": summary.name,
+        "bank_files": [str(Path("patchcore") / f"{name}.pt") for name in categories],
+    }
+    destination = output_root / "manifest.json"
+    temporary = destination.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.replace(destination)
     return results
 
 
