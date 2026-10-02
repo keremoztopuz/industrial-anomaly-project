@@ -3,3 +3,6 @@ prefect==3.8.7
 torch==2.14.0
 torchvision==0.29.0
 pytest==7.4.2
+fastapi==0.142.2
+uvicorn==0.54.0
+python-multipart==0.0.32
