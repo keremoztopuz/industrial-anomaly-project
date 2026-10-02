@@ -1,0 +1,8 @@
+# CI dependencies for Linux x86_64 without a GPU.
+# Regenerate requirements-ci.lock after changing this file or requirements.txt:
+#   uv pip compile requirements-ci.in -o requirements-ci.lock --generate-hashes \
+#     --python-version 3.12 --python-platform x86_64-manylinux_2_28 --only-binary :all: \
+#     --extra-index-url https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match --emit-index-url
+-r requirements.txt
+torch==2.14.0+cpu
+torchvision==0.29.0+cpu
