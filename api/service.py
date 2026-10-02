@@ -1,7 +1,9 @@
 from fastapi import FastAPI, UploadFile
+from mvtec_dataset import build_transform
 import uvicorn
 
 app = FastAPI()
+transform = build_transform(256)  # Example image size, adjust as needed
 
 @app.get("/")
 def read_root():
