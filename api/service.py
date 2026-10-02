@@ -13,9 +13,12 @@ MODEL_DIR = Path(os.environ.get("MODEL_DIR", "artifacts/border-exclusion/coreset
 @asynccontextmanager
 async def lifespan(app):
     models = {}
+    backbone = None
     for path in sorted(MODEL_DIR.glob("*.pt")):
-        models[path.stem] = PatchCore.load(path, device="cpu")
-        print(f"Loaded model: {path.stem}")
+        model = PatchCore.load(path, device="cpu", backbone=backbone)
+        backbone = model.backbone
+        models[path.stem] = model
+        print(f"Loaded model {path.stem} from {path}")
     app.state.models = models
     yield
 
