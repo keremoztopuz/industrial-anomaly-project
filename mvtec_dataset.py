@@ -8,6 +8,12 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from torchvision.transforms import InterpolationMode, functional as F
 
+def build_transform(image_size):
+    return transforms.Compose([
+        transforms.Resize((image_size, image_size), InterpolationMode.BILINEAR, antialias=True),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
 
 class MVTecDataset(Dataset):
     """Load one MVTec category from FiftyOne metadata, without changing source files."""
@@ -31,11 +37,7 @@ class MVTecDataset(Dataset):
         ]
         if not self.samples:
             raise ValueError(f"No usable samples for {category}/{split}")
-        self.transform = transforms.Compose([
-            transforms.Resize((image_size, image_size), InterpolationMode.BILINEAR, antialias=True),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
+        self.transform = build_transform(image_size)
 
     def __len__(self):
         return len(self.samples)

@@ -1,7 +1,26 @@
-from fastapi import FastAPI, UploadFile
+import os
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI, UploadFile, Request
 import uvicorn
 
-app = FastAPI()
+from mvtec_dataset import build_transform
+from patchcore import PatchCore
+
+MODEL_DIR = Path(os.environ.get("MODEL_DIR", "artifacts/border-exclusion/coreset-16384-n3-b2/patchcore"))
+
+@asynccontextmanager
+async def lifespan(app):
+    models = {}
+    for path in sorted(MODEL_DIR.glob("*.pt")):
+        models[path.stem] = PatchCore.load(path, device="cpu")
+        print(f"Loaded model: {path.stem}")
+    app.state.models = models
+    yield
+
+app = FastAPI(lifespan=lifespan)
+transform = build_transform(256)  # Example image size, adjust as needed
 
 @app.get("/")
 def read_root():
@@ -12,8 +31,8 @@ def health_check():
     return {"status": "healthy"}
 
 @app.get("/categories")
-def get_categories():
-    return {"categories": ["category1", "category2", "category3"]}
+def get_categories(request: Request):
+    return {"categories": sorted(request.app.state.models.keys())}
 
 @app.post("/predict/{category}")
 async def predict(category: str, upload_file: UploadFile):
