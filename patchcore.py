@@ -21,7 +21,7 @@ class PatchCore:
     """
 
     def __init__(self, device="cpu", max_patches=2048, projection_dim=256, seed=42,
-                 selection="random", neighborhood=1, border=0):
+                 selection="random", neighborhood=1, border=0, backbone=None):
         if max_patches < 1 or projection_dim < 1:
             raise ValueError("max_patches and projection_dim must be positive")
         if selection not in ("random", "coreset"):
@@ -37,12 +37,16 @@ class PatchCore:
         self.selection = selection
         self.neighborhood = neighborhood
         self.border = border
-        model = wide_resnet50_2(weights=Wide_ResNet50_2_Weights.IMAGENET1K_V2)
-        self.backbone = create_feature_extractor(
-            model, return_nodes={"layer2": "layer2", "layer3": "layer3"}
-        ).to(self.device).eval()
-        for parameter in self.backbone.parameters():
+
+        if backbone is None:
+            model = wide_resnet50_2(weights=Wide_ResNet50_2_Weights.IMAGENET1K_V2)
+            backbone = create_feature_extractor(
+                model, return_nodes={"layer2": "layer2", "layer3": "layer3"}
+            ).to(self.device).eval()
+    
+        for parameter in backbone.parameters():
             parameter.requires_grad_(False)
+        self.backbone = backbone
         generator = torch.Generator().manual_seed(seed)
         self.projection = (
             torch.randn(1536, projection_dim, generator=generator) / sqrt(projection_dim)
@@ -135,11 +139,11 @@ class PatchCore:
         }, path)
 
     @classmethod
-    def load(cls, path, device="cpu"):
+    def load(cls, path, device="cpu", backbone=None):
         state = torch.load(path, map_location="cpu", weights_only=True)
         model = cls(device, state["max_patches"], state["projection_dim"],
                     state["seed"], state.get("selection", "random"),
-                    state.get("neighborhood", 1), state.get("border", 0))
+                    state.get("neighborhood", 1), state.get("border", 0), backbone=backbone)
         model.projection = state["projection"].to(model.device)
         model.memory_bank = state["memory_bank"]
         return model
