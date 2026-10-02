@@ -23,8 +23,4 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run tests
-        run: |
-          pytest tests/test_validate_dataset.py
-          pytest tests/test_dataset_summary.py
-          pytest tests/test_patchcore.py
-          pytest tests/test_mvtec_dataset.py
+        run: python -m pytest tests
