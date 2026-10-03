@@ -6,10 +6,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY requirements-api.txt .
-RUN pip install --no-cache-dir -r requirements-api.txt
-
-RUN python -c "from torchvision.models import Wide_ResNet50_2_Weights as W; W.IMAGENET1K_V2.get_state_dict(progress=False)"
+COPY requirements-api.lock .
+RUN pip install --no-cache-dir --only-binary :all: --require-hashes \
+        -r requirements-api.lock \
+    && python -c "from torchvision.models import Wide_ResNet50_2_Weights as W; \
+        W.IMAGENET1K_V2.get_state_dict(progress=False)"
 
 COPY mvtec_dataset.py patchcore.py ./
 COPY api/ api/

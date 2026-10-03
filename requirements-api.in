@@ -1,0 +1,11 @@
+# Serving dependencies for the Docker image (Linux, CPU only).
+# Regenerate requirements-api.lock after changing this file:
+#   uv pip compile requirements-api.in -o requirements-api.lock --generate-hashes --universal \
+#     --python-version 3.12 --only-binary :all: --index-strategy unsafe-best-match --emit-index-url
+--extra-index-url https://download.pytorch.org/whl/cpu
+Pillow==11.3.0
+torch==2.14.0+cpu ; sys_platform == "linux"
+torchvision==0.29.0+cpu ; sys_platform == "linux"
+fastapi==0.142.2
+uvicorn==0.54.0
+python-multipart==0.0.32
