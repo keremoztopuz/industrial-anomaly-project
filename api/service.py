@@ -14,6 +14,8 @@ from PIL import Image
 import torch
 
 MODEL_DIR = Path(os.environ.get("MODEL_DIR", "artifacts/border-exclusion/coreset-16384-n3-b2/patchcore"))
+HOST = os.environ.get("HOST", "0.0.0.0")
+PORT = int(os.environ.get("PORT", 8000))
 
 @asynccontextmanager
 async def lifespan(app):
@@ -65,4 +67,4 @@ def predict(category: str, upload_file: UploadFile, request: Request):
     }
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host=HOST, port=PORT)
