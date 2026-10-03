@@ -1,0 +1,8 @@
+.venv/
+.venv-py39/
+data/
+artifacts/
+__pycache__/
+.git/
+.vscode/
+.nodeterm/
