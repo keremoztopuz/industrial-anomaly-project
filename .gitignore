@@ -3,3 +3,6 @@
 __pycache__/
 data/mvtec-ad/
 artifacts/
+mlflow.db
+mlruns/
+mlartifacts/
