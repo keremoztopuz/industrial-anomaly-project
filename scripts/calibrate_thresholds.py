@@ -79,6 +79,7 @@ def calibrate_category(category, args, backbone):
         "holdout_images": len(holdout),
         "holdout_score_mean": float(holdout_scores.mean()),
         "holdout_score_max": threshold,
+        "holdout_scores": holdout_scores.tolist(),
     }, confusion(test_scores, test_labels, threshold)
 
 
