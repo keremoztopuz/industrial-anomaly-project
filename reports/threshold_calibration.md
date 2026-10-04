@@ -60,6 +60,24 @@ resmi koşudandır ve eşikten bağımsızdır.
 Toplam satırı bütün test görüntülerini birlikte sayar (makro ortalama değildir).
 Bütün test görüntülerinde doğru karar oranı 0,869'dur.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="figures/threshold_confusion_dark.svg">
+  <img alt="Bütün test görüntüleri için karışıklık matrisi" src="figures/threshold_confusion_light.svg">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="figures/threshold_rates_dark.svg">
+  <img alt="Kategori başına recall ve yanlış alarm oranı" src="figures/threshold_rates_light.svg">
+</picture>
+
+Aşağıdaki grafikte her nokta bir test görüntüsüdür; kesikli çizgi kategorinin eşiğidir.
+Kategorilerin puan ölçekleri farklı olduğu için her panelin kendi ekseni vardır.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="figures/threshold_scores_dark.svg">
+  <img alt="Kategori başına test puan dağılımları ve eşikler" src="figures/threshold_scores_light.svg">
+</picture>
+
 ## Yorum
 
 - **Altı kategoride sonuç iyi:** `bottle`, `hazelnut`, `leather`, `metal_nut`,
@@ -84,6 +102,43 @@ temkinli, bazılarında fazla hassas. Kaçan kusurla yanlış alarm arasındaki 
 bir iş kararıdır (bir kusuru kaçırmak mı daha pahalı, sağlam parçayı atmak mı?).
 Bu rapor bu tercihi yapmaz; yalnızca, test kümesine bakmadan seçilmiş tek bir
 kuralın sonucunu gösterir.
+
+## Ek inceleme: "en yüksek puan" kuralı aykırı değere hassas
+
+**`pill`:** Eşik 17,55, ama test kümesindeki en yüksek sağlam puan 16,21. Ayrılan 54
+sağlam eğitim görüntüsünün puanları tek tek incelendi: en yüksek sekizi 14,81, 14,83,
+14,88, 14,91, 15,00, 15,28, 15,46 ve **17,55**. Eşiği tek bir görüntü
+(`data/data_15/182-5.png`) belirliyor; ondan sonraki en yüksek puan 15,46. Bu
+görüntüde, "F" harfinin yanında diğer beneklerden belirgin biçimde büyük kırmızı bir
+benek var; puanın bu bölgeden gelip gelmediği ayrıca incelenmedi. Test kümesindeki
+bütün sağlam görüntülerin altında kalan en yüksek eşik (16,21) kullanılsaydı, yine hiç
+yanlış alarm olmadan recall 0,49 yerine 0,71 olurdu. Bu değer test kümesine bakılarak
+bulunduğu için bir eşik önerisi değildir; yalnızca kuralın bu kategoride ne kadar
+kaybettirdiğini gösterir.
+
+`pill`'de kaçan kusurlar daha çok ince olanlardır:
+
+| Kusur tipi | Yakalanan / toplam |
+| --- | ---: |
+| `pill_type` | 9 / 9 |
+| `combined` | 13 / 17 |
+| `contamination` | 13 / 21 |
+| `scratch` | 14 / 24 |
+| `color` | 11 / 25 |
+| `faulty_imprint` | 4 / 19 |
+| `crack` | 5 / 26 |
+
+**`toothbrush`:** %100 recall yanıltıcıdır. Eşik (12,47), test kümesindeki sağlam
+görüntülerin ortanca puanına (11,99) çok yakın. Hiç yanlış alarm vermeyen bir eşikte
+recall 0,57 olurdu. Recall tek başına okunmamalı; yanlış alarm oranıyla birlikte
+okunmalıdır.
+
+İki durum aynı zayıflığı gösterir: en yüksek değer, az sayıda örnekte (`toothbrush`, 12
+görüntü) puan dağılımının üst ucunu kaçırıp eşiği düşük bırakabilir; tek bir aykırı
+örnekte (`pill`) ise eşiği gereğinden yukarı itebilir. Aykırı değerlere daha dayanıklı
+kurallar (ör. ortalama + 3 standart sapma, bir yüzdelik veya k-katlı bölme) MLflow ile
+ayrı deneyler olarak karşılaştırılacak. Kural, test sonuçlarına bakılarak değil,
+önceden yazılmış bir gerekçeyle seçilmelidir.
 
 ## Sınırlar
 
@@ -116,4 +171,13 @@ Apple MPS üzerinde yaklaşık 55 dakikada çalıştırıldı. `thresholds.json`
   --dataset-root data/mvtec-ad \
   --model-dir artifacts/border-exclusion/coreset-16384-n3-b2/patchcore \
   --holdout-fraction 0.2 --seed 42 --device mps
+```
+
+Grafikler [`scripts/plot_threshold_results.py`](../scripts/plot_threshold_results.py)
+ile üretildi. Script, test puanlarını ilk çalıştırmada hesaplayıp bankaların yanına
+`test_scores.json` olarak kaydeder ve `reports/figures/` altına açık ve koyu tema için
+SVG yazar:
+
+```sh
+.venv/bin/python -m scripts.plot_threshold_results --device mps
 ```
