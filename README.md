@@ -26,6 +26,7 @@ Per-category tables, run manifests and caveats are in [`reports/`](reports/) (wr
 | [`bank_size_sweep.md`](reports/bank_size_sweep.md) | How much does memory bank size matter? |
 | [`local_aggregation.md`](reports/local_aggregation.md) | Does averaging neighboring features help? |
 | [`border_exclusion.md`](reports/border_exclusion.md) | Why was `grid` failing, and how was it fixed? |
+| [`threshold_calibration.md`](reports/threshold_calibration.md) | Where should the defective/normal cut-off be? |
 
 ## How it works
 
@@ -48,6 +49,7 @@ Dockerfile                CPU-only image for the service
 requirements-api.in       Serving dependencies; compiled to the hashed requirements-api.lock
 scripts/
   build_patchcore.py      Build memory banks without evaluating
+  calibrate_thresholds.py Pick each category's is_anomaly threshold from held-out normal images
   visualize_anomalies.py  Render example images with masks and anomaly overlays
   dataset_summary.py      Count images per category, split and defect
   validate_dataset.py     Decode every image and mask and check their sizes
@@ -130,15 +132,18 @@ The defaults reproduce the original baseline. Banks saved before an option exist
 | --- | --- |
 | `GET /health` | `{"status": "healthy"}` |
 | `GET /categories` | Sorted list of loaded categories |
-| `POST /predict/{category}` | Image score for an uploaded image (`upload_file` form field) |
+| `POST /predict/{category}` | Image score, threshold and `is_anomaly` for an uploaded image (`upload_file` form field) |
 
 Unknown categories return 404 and files that are not readable images return 400.
 
 ```sh
 curl -X POST -F "upload_file=@bottle.png" \
   https://anomaly-api-sw4p2ayosa-ew.a.run.app/predict/bottle
-# {"category": "bottle", "filename": "bottle.png", "anomaly_score": 24.67}
+# {"category": "bottle", "filename": "bottle.png", "anomaly_score": 24.67,
+#  "threshold": 12.82, "is_anomaly": true}
 ```
+
+`is_anomaly` is `anomaly_score > threshold`. Each category's threshold is the highest score among 20% of its normal training images held out from a bank fit on the rest, so the test set plays no part in choosing it. The thresholds are read from `thresholds.json` next to the banks; without that file `threshold` and `is_anomaly` are `null`. Over all test images this catches 84.6% of defective parts with a 6.9% false alarm rate, but the balance differs a lot by category (see [`threshold_calibration.md`](reports/threshold_calibration.md)).
 
 Run it locally against saved banks:
 
@@ -180,5 +185,6 @@ The tests mock the backbone, so they need neither the dataset nor the pretrained
 
 - Every result comes from a single seed, so there are no confidence intervals. Differences of about ±0.01 may be noise.
 - MVTec AD has no validation split. The `--border` value was chosen by looking at test results, so the best row above may slightly overstate performance on unseen data.
+- One threshold rule does not fit every category: it misses about half of the `pill` defects and flags over 40% of normal `carpet` and `toothbrush` test images. The held-out sets are small (12–79 images), so the highest held-out score is a noisy estimate.
 - A defect that lies only within the excluded border strip (about 16 pixels at 256 × 256) does not affect the image score. It still shows up in the anomaly map.
 - Images are resized without the center crop used in the PatchCore paper, which reports about 0.99 image AUROC.
