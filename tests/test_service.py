@@ -64,6 +64,13 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(self.client.get("/").status_code, 200)
         self.assertEqual(self.client.get("/health").json(), {"status": "healthy"})
 
+    def test_model_reports_name_version_dir_and_loaded_categories(self):
+        body = self.client.get("/model").json()
+        self.assertEqual(body["name"], "patchcore-mvtec")
+        self.assertEqual(body["version"], "local")
+        self.assertEqual(body["categories"], 2)
+        self.assertIn("model_dir", body)
+
     def test_categories_are_sorted(self):
         response = self.client.get("/categories")
         self.assertEqual(response.status_code, 200)

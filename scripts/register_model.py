@@ -1,0 +1,47 @@
+"""Register a run's PatchCore banks as a new version of the patchcore-mvtec model.
+
+Run from the repository root: python -m scripts.register_model
+"""
+
+import argparse
+from pathlib import Path
+
+from mlflow.tracking import MlflowClient
+
+MODEL_NAME = "patchcore-mvtec"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source-dir", default="border-exclusion/coreset-16384-n3-b2",
+                        help="source_dir tag of the run to register")
+    parser.add_argument("--model-dir", type=Path,
+                        default=Path("artifacts/border-exclusion/coreset-16384-n3-b2/patchcore"))
+    parser.add_argument("--alias", default="production")
+    parser.add_argument("--tracking-uri", default="sqlite:///mlflow.db")
+    args = parser.parse_args()
+    client = MlflowClient(args.tracking_uri)
+
+    experiment = client.get_experiment_by_name("patchcore-mvtec")
+    runs = client.search_runs(
+        [experiment.experiment_id],
+        filter_string=f"tags.source_dir = '{args.source_dir}'"
+    )
+    if len(runs) != 1:
+        raise ValueError(f"Expected one run with source_dir={args.source_dir}, found {len(runs)}")
+    run_id = runs[0].info.run_id
+
+    client.log_artifacts(run_id, str(args.model_dir), artifact_path="model")
+    if not client.search_registered_models(filter_string=f"name = '{MODEL_NAME}'"):
+        client.create_registered_model(MODEL_NAME)
+
+    version = client.create_model_version(
+        MODEL_NAME, source=f"runs:/{run_id}/model", run_id=run_id)
+
+    client.set_registered_model_alias(MODEL_NAME, args.alias, version.version)
+
+    print(f"{MODEL_NAME} v{version.version} -> @{args.alias}")
+
+
+if __name__ == "__main__":
+    main()

@@ -50,6 +50,11 @@ requirements-api.in       Serving dependencies; compiled to the hashed requireme
 scripts/
   build_patchcore.py      Build memory banks without evaluating
   calibrate_thresholds.py Pick each category's is_anomaly threshold from held-out normal images
+  compare_threshold_rules.py  Compare threshold rules on a validation half of the test set
+  plot_threshold_results.py   Draw the threshold figures in reports/figures/
+  backfill_mlflow.py      Record runs made before MLflow tracking
+  register_model.py       Register a run's banks as a new patchcore-mvtec version
+  deploy_model.py         Point Cloud Run at the version behind an MLflow alias
   visualize_anomalies.py  Render example images with masks and anomaly overlays
   dataset_summary.py      Count images per category, split and defect
   validate_dataset.py     Decode every image and mask and check their sizes
@@ -132,6 +137,7 @@ The defaults reproduce the original baseline. Banks saved before an option exist
 | --- | --- |
 | `GET /health` | `{"status": "healthy"}` |
 | `GET /categories` | Sorted list of loaded categories |
+| `GET /model` | Model name, registry version, model directory and number of loaded categories |
 | `POST /predict/{category}` | Image score, threshold and `is_anomaly` for an uploaded image (`upload_file` form field) |
 
 Unknown categories return 404 and files that are not readable images return 400.
@@ -166,12 +172,31 @@ Then open http://127.0.0.1:8000/docs. The image installs CPU-only PyTorch from t
 ```
 GitHub main ──▶ Cloud Build (Dockerfile) ──▶ Artifact Registry ──▶ Cloud Run ──▶ public HTTPS URL
                                                                        ▲
-                                     Cloud Storage bucket (banks) ─────┘ mounted read-only at /models
+     MLflow registry ──deploy_model.py──▶ Cloud Storage bucket ────────┘ mounted read-only at /models
+     patchcore-mvtec@production           patchcore-mvtec/v<N>/
 ```
 
-The live service runs on Google Cloud Run in `europe-west1`. A Cloud Build trigger builds the Dockerfile and deploys a new revision on every push to `main`. The banks live in a Cloud Storage bucket that Cloud Run mounts read-only at `/models`, the same way `-v` works locally.
+The live service runs on Google Cloud Run in `europe-west1`. A Cloud Build trigger builds the Dockerfile and deploys a new revision on every push to `main`, and `main` only accepts pull requests whose tests and SonarCloud checks pass. Code and models ship separately: the banks live in a Cloud Storage bucket that Cloud Run mounts read-only at `/models`, the same way `-v` works locally.
 
 The service has 2 GiB of memory and 1 vCPU. It scales between 0 and 1 instances, which keeps the cost close to zero and caps it under load, and the project has a budget alert.
+
+## Experiment tracking and model registry
+
+Every `run_pipeline.py` run is logged to MLflow in the `patchcore-mvtec` experiment: settings as params, image and pixel AUROC per category and their means as metrics, git commit and dataset hash as tags, and `metrics.json` and `manifest.json` as artifacts. `--tracking-uri` defaults to a local `sqlite:///mlflow.db`. Runs made before tracking existed were added with `scripts/backfill_mlflow.py`, so every report table can be compared in one place (filter on `tags.num_categories = "15"` to compare full runs). The threshold rule comparison is logged in a separate `threshold-rules` experiment.
+
+```sh
+.venv/bin/mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5001   # macOS uses port 5000 for AirPlay
+```
+
+The deployed banks are registered as the `patchcore-mvtec` model. Each version points to the run it came from, and the `production` alias marks the version that should be live:
+
+```sh
+.venv/bin/python -m scripts.register_model    # log a run's banks + thresholds.json, add a version, set @production
+.venv/bin/python -m scripts.deploy_model      # upload @production to gs://<bucket>/patchcore-mvtec/v<N>/ if needed,
+                                              # then set MODEL_DIR and MODEL_VERSION on the Cloud Run service
+```
+
+Each version gets its own folder in the bucket and is never overwritten. To roll back, move the `production` alias to an older version and run `deploy_model.py` again: the files are already there, so only the service's environment changes. `GET /model` shows which version is live.
 
 ## Tests
 
