@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir --only-binary :all: --require-hashes \
     && python -c "from torchvision.models import Wide_ResNet50_2_Weights as W; \
         W.IMAGENET1K_V2.get_state_dict(progress=False)"
 
-COPY mvtec_dataset.py patchcore.py ./
+COPY anomaly/ anomaly/
 COPY api/ api/
 
 RUN useradd --create-home appuser

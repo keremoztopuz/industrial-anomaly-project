@@ -6,7 +6,7 @@ from unittest import mock
 
 from mlflow.tracking import MlflowClient
 
-import run_pipeline
+from anomaly import run_pipeline
 
 RESULTS = {
     "bottle": {"image_auroc": 1.0, "pixel_auroc": 0.9},

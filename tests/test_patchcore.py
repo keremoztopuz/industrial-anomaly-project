@@ -9,8 +9,8 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import patchcore
-from patchcore import PatchCore
+from anomaly import patchcore
+from anomaly.patchcore import PatchCore
 
 
 @contextmanager

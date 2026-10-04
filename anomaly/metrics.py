@@ -1,5 +1,7 @@
 """Image and pixel AUROC for one MVTec category."""
 
+import math
+
 import torch
 
 
@@ -53,5 +55,5 @@ def evaluate_category(image_scores, anomaly_maps, labels, masks):
 
 
 if __name__ == "__main__":
-    assert binary_auroc([0.1, 0.9], [0, 1]) == 1.0
-    assert binary_auroc([0.5, 0.5], [0, 1]) == 0.5
+    assert math.isclose(binary_auroc([0.1, 0.9], [0, 1]), 1.0)
+    assert math.isclose(binary_auroc([0.5, 0.5], [0, 1]), 0.5)

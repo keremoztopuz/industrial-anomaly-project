@@ -15,8 +15,8 @@ from pathlib import Path
 
 import torch
 
-from mvtec_dataset import MVTecDataset
-from patchcore import PatchCore
+from anomaly.mvtec_dataset import MVTecDataset
+from anomaly.patchcore import PatchCore
 from scripts.calibrate_thresholds import confusion, default_device, score, write_json
 
 THEMES = {
