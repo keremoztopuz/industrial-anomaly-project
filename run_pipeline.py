@@ -1,4 +1,5 @@
 """Run PatchCore and anomaly evaluation for one or all MVTec categories."""
+import mlflow
 
 import argparse
 import hashlib
@@ -51,7 +52,7 @@ def run_category(category, dataset_root, output_root, image_size, batch_size,
 def run_pipeline(dataset_root, output_root, image_size=256, batch_size=8,
                  device="cpu", max_patches=2048, projection_dim=256, seed=42,
                  category=None, selection="random", neighborhood=1,
-                 border=0):
+                 border=0, tracking_uri="sqlite:///mlflow.db"):
     if image_size <= 0 or batch_size <= 0:
         raise ValueError("image_size and batch_size must be positive")
     dataset_root, output_root = Path(dataset_root).resolve(), Path(output_root).resolve()
@@ -61,59 +62,91 @@ def run_pipeline(dataset_root, output_root, image_size=256, batch_size=8,
             raise ValueError(f"Unknown category: {category}. Available: {', '.join(categories)}")
         categories = [category]
     output_root.mkdir(parents=True, exist_ok=True)
-    results = {
-        category: run_category(category, dataset_root, output_root, image_size,
-                               batch_size, device, max_patches, projection_dim, seed,
-                               selection, neighborhood, border)
-        for category in categories
-    }
-    summary = output_root / "metrics.json"
-    temporary = summary.with_suffix(".json.tmp")
-    temporary.write_text(json.dumps(results, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    temporary.replace(summary)
+    mlflow.set_tracking_uri(tracking_uri)
+    mlflow.set_experiment("patchcore-mvtec")
+    with mlflow.start_run(run_name=output_root.name):
+        mlflow.log_params({
+            "dataset_root": str(dataset_root),
+            "output_root": str(output_root),
+            "image_size": image_size,
+            "batch_size": batch_size,
+            "device": device,
+            "max_patches": max_patches,
+            "projection_dim": projection_dim,
+            "seed": seed,
+            "selection": selection,
+            "neighborhood": neighborhood,
+            "border": border,
+        })
+        results = {
+            category: run_category(category, dataset_root, output_root, image_size,
+                                batch_size, device, max_patches, projection_dim, seed,
+                                selection, neighborhood, border)
+            for category in categories
+        }
 
-    source_root = Path(__file__).resolve().parent
-    try:
-        git = subprocess.run(
-            ["git", "-C", str(source_root), "rev-parse", "HEAD"],
-            capture_output=True, text=True, check=False,
-        )
-        git_commit = git.stdout.strip() if git.returncode == 0 else None
-        git_dirty = None
-        if git_commit:
-            status = subprocess.run(
-                ["git", "-C", str(source_root), "status", "--porcelain", "--untracked-files=no"],
+        for category, metrics in results.items():
+            mlflow.log_metric(f"image_auroc/{category}", metrics["image_auroc"])
+            mlflow.log_metric(f"pixel_auroc/{category}", metrics["pixel_auroc"])
+        mlflow.log_metric("image_auroc_mean", sum(m["image_auroc"] for m in results.values()) / len(results))
+        mlflow.log_metric("pixel_auroc_mean", sum(m["pixel_auroc"] for m in results.values()) / len(results))
+
+        summary = output_root / "metrics.json"
+        temporary = summary.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps(results, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        temporary.replace(summary)
+
+        source_root = Path(__file__).resolve().parent
+        try:
+            git = subprocess.run(
+                ["git", "-C", str(source_root), "rev-parse", "HEAD"],
                 capture_output=True, text=True, check=False,
             )
-            if status.returncode == 0:
-                git_dirty = bool(status.stdout.strip())
-    except OSError:
-        git_commit = git_dirty = None
-    with (dataset_root / "samples.json").open("rb") as file:
-        samples_json_sha256 = hashlib.file_digest(file, "sha256").hexdigest()
-    manifest = {
-        "created_at_utc": datetime.now(timezone.utc).isoformat(),
-        "git_commit": git_commit,
-        "git_dirty": git_dirty,
-        "samples_json_sha256": samples_json_sha256,
-        "categories": categories,
-        "image_size": image_size,
-        "batch_size": batch_size,
-        "device": str(device),
-        "max_patches": max_patches,
-        "projection_dim": projection_dim,
-        "seed": seed,
-        "selection": selection,
-        "neighborhood": neighborhood,
-        "border": border,
-        "metrics_file": summary.name,
-        "bank_files": [str(Path("patchcore") / f"{name}.pt") for name in categories],
-    }
-    destination = output_root / "manifest.json"
-    temporary = destination.with_suffix(".json.tmp")
-    temporary.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    temporary.replace(destination)
-    return results
+            git_commit = git.stdout.strip() if git.returncode == 0 else None
+            git_dirty = None
+            if git_commit:
+                status = subprocess.run(
+                    ["git", "-C", str(source_root), "status", "--porcelain", "--untracked-files=no"],
+                    capture_output=True, text=True, check=False,
+                )
+                if status.returncode == 0:
+                    git_dirty = bool(status.stdout.strip())
+        except OSError:
+            git_commit = git_dirty = None
+        with (dataset_root / "samples.json").open("rb") as file:
+            samples_json_sha256 = hashlib.file_digest(file, "sha256").hexdigest()
+        manifest = {
+            "created_at_utc": datetime.now(timezone.utc).isoformat(),
+            "git_commit": git_commit,
+            "git_dirty": git_dirty,
+            "samples_json_sha256": samples_json_sha256,
+            "categories": categories,
+            "image_size": image_size,
+            "batch_size": batch_size,
+            "device": str(device),
+            "max_patches": max_patches,
+            "projection_dim": projection_dim,
+            "seed": seed,
+            "selection": selection,
+            "neighborhood": neighborhood,
+            "border": border,
+            "metrics_file": summary.name,
+            "bank_files": [str(Path("patchcore") / f"{name}.pt") for name in categories],
+        }
+        destination = output_root / "manifest.json"
+        temporary = destination.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        temporary.replace(destination)
+
+        mlflow.set_tags({
+            "git_commit": git_commit,
+            "git_dirty": str(git_dirty),
+            "samples_json_sha256": samples_json_sha256,
+        })
+
+        mlflow.log_artifact(str(summary))
+        mlflow.log_artifact(str(destination))
+        return results
 
 
 def main():
@@ -134,6 +167,8 @@ def main():
                         help="Odd feature-averaging window; PatchCore uses 3")
     parser.add_argument("--border", type=int, default=0,
                         help="Outer patch rings ignored by image scores")
+    parser.add_argument("--tracking-uri", default="sqlite:///mlflow.db",
+                        help="MLflow tracking URI")
     args = parser.parse_args()
     run_pipeline(**vars(args))
 
