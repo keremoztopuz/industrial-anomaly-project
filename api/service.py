@@ -10,9 +10,10 @@ from anomaly.mvtec_dataset import build_transform
 from anomaly.patchcore import PatchCore
 
 from io import BytesIO
-from PIL import Image
+from PIL import Image, ImageStat
 
 import torch
+import time
 
 MODEL_DIR = Path(os.environ.get("MODEL_DIR", "artifacts/border-exclusion/coreset-16384-n3-b2/patchcore"))
 MODEL_NAME = os.environ.get("MODEL_NAME", "patchcore-mvtec")
@@ -27,6 +28,10 @@ def load_thresholds(path):
         return {}
     categories = json.loads(path.read_text(encoding="utf-8"))["categories"]
     return {category: values["threshold"] for category, values in categories.items()}
+
+def log_prediction(**fields):
+    """Write one JSON line; Cloud Run sends it to Cloud Logging as jsonPayload."""
+    print(json.dumps({"event": "prediction", **fields}), flush=True)
 
 @asynccontextmanager
 async def lifespan(app):
@@ -75,18 +80,34 @@ def predict(category: str, upload_file: UploadFile, request: Request):
     except OSError as e:
         raise HTTPException(status_code=400, detail="Invalid image file") from e
 
+    stats = ImageStat.Stat(image.convert("L"))
+
+    start = time.perf_counter()
     tensor = transform(image).unsqueeze(0)
     with torch.no_grad():
         scores, _ = models[category].predict(tensor)
 
     score = scores[0].item()
+    latency_ms = (time.perf_counter() - start) * 1000
     threshold = request.app.state.thresholds.get(category)
+    is_anomaly = None if threshold is None else score > threshold
+    log_prediction(category=category,
+                   model_version=MODEL_VERSION,
+                   anomaly_score=round(score, 2),
+                   threshold=threshold,
+                   is_anomaly=is_anomaly,
+                   latency_ms=round(latency_ms, 2),
+                   width=image.width,
+                   height=image.height,
+                   brightness=round(stats.mean[0], 1),
+                   contrast=round(stats.stddev[0], 1)
+                   )
     return {
         "category": category,
         "filename": upload_file.filename,
         "anomaly_score": score,
         "threshold": threshold,
-        "is_anomaly": None if threshold is None else score > threshold,
+        "is_anomaly": is_anomaly,
     }
 
 if __name__ == "__main__":

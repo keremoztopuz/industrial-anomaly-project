@@ -2,7 +2,8 @@ import json
 import sys
 import tempfile
 import unittest
-from io import BytesIO
+from contextlib import redirect_stdout
+from io import BytesIO, StringIO
 from pathlib import Path
 
 import torch
@@ -121,6 +122,38 @@ class ServiceTests(unittest.TestCase):
     def test_predict_accepts_jpeg(self):
         response = self.predict("bottle", image_bytes(fmt="JPEG"), filename="image.jpg")
         self.assertEqual(response.status_code, 200)
+
+    def logged(self, category, contents, filename="image.png"):
+        output = StringIO()
+        with redirect_stdout(output):
+            response = self.predict(category, contents, filename)
+        lines = [json.loads(line) for line in output.getvalue().splitlines()
+                 if line.startswith("{")]
+        return response, [line for line in lines if line.get("event") == "prediction"]
+
+    def test_prediction_is_logged_as_one_json_line(self):
+        response, [line] = self.logged("bottle", image_bytes(mode="L", size=(64, 48)),
+                                       filename="secret-order-42.png")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(line["category"], "bottle")
+        self.assertEqual(line["model_version"], "local")
+        self.assertEqual(line["anomaly_score"], 0.5)
+        self.assertEqual(line["threshold"], 0.4)
+        self.assertTrue(line["is_anomaly"])
+        self.assertEqual((line["width"], line["height"]), (64, 48))
+        self.assertEqual((line["brightness"], line["contrast"]), (0.0, 0.0))
+        self.assertGreaterEqual(line["latency_ms"], 0)
+        self.assertNotIn("filename", line)
+        self.assertNotIn("secret-order-42", json.dumps(line))
+
+    def test_log_and_response_agree_on_is_anomaly(self):
+        response, [line] = self.logged("cable", image_bytes())
+        self.assertEqual(line["is_anomaly"], response.json()["is_anomaly"])
+        self.assertFalse(line["is_anomaly"])
+
+    def test_rejected_requests_are_not_logged_as_predictions(self):
+        self.assertEqual(self.logged("banana", image_bytes())[1], [])
+        self.assertEqual(self.logged("bottle", b"not an image", "notes.txt")[1], [])
 
     def test_unknown_category_returns_404(self):
         response = self.predict("banana", image_bytes())
