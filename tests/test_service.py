@@ -1,4 +1,6 @@
+import json
 import sys
+import tempfile
 import unittest
 from io import BytesIO
 from pathlib import Path
@@ -12,7 +14,7 @@ sys.path.insert(0, str(ROOT / "api"))
 
 from fastapi.testclient import TestClient
 
-from service import app
+from service import app, load_thresholds
 
 
 class FakeModel:
@@ -30,13 +32,14 @@ class FakeModel:
         return scores, maps
 
 
-def make_client(models):
+def make_client(models, thresholds=None):
     """Return a TestClient serving `models` without loading real .pt files.
 
     TestClient only runs the lifespan inside a `with` block, so we skip it
-    and set app.state.models ourselves.
+    and set app.state.models and app.state.thresholds ourselves.
     """
     app.state.models = models
+    app.state.thresholds = thresholds or {}
     return TestClient(app)
 
 
@@ -50,7 +53,8 @@ def image_bytes(mode="RGB", size=(64, 48), fmt="PNG"):
 class ServiceTests(unittest.TestCase):
     def setUp(self):
         self.bottle = FakeModel(score=0.5)
-        self.client = make_client({"bottle": self.bottle, "cable": FakeModel(score=1.0)})
+        self.client = make_client({"bottle": self.bottle, "cable": FakeModel(score=1.0)},
+                                  thresholds={"bottle": 0.4, "cable": 2.0})
 
     def predict(self, category, contents, filename="image.png"):
         return self.client.post(f"/predict/{category}",
@@ -72,7 +76,23 @@ class ServiceTests(unittest.TestCase):
             "category": "bottle",
             "filename": "image.png",
             "anomaly_score": 0.5,
+            "threshold": 0.4,
+            "is_anomaly": True,
         })
+
+    def test_score_at_or_below_threshold_is_normal(self):
+        self.assertFalse(self.predict("cable", image_bytes()).json()["is_anomaly"])
+        client = make_client({"bottle": FakeModel(score=0.5)}, thresholds={"bottle": 0.5})
+        response = client.post("/predict/bottle", files={"upload_file": ("a.png", image_bytes())})
+        self.assertFalse(response.json()["is_anomaly"])
+
+    def test_missing_threshold_returns_null_decision(self):
+        client = make_client({"bottle": FakeModel(score=0.5)})
+        body = client.post("/predict/bottle",
+                           files={"upload_file": ("a.png", image_bytes())}).json()
+        self.assertEqual(body["anomaly_score"], 0.5)
+        self.assertIsNone(body["threshold"])
+        self.assertIsNone(body["is_anomaly"])
 
     def test_predict_uses_requested_category(self):
         response = self.predict("cable", image_bytes())
@@ -115,6 +135,21 @@ class ServiceTests(unittest.TestCase):
     def test_missing_file_returns_422(self):
         response = self.client.post("/predict/bottle")
         self.assertEqual(response.status_code, 422)
+
+
+class LoadThresholdsTests(unittest.TestCase):
+    def test_reads_threshold_per_category(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "thresholds.json"
+            path.write_text(json.dumps({"method": "max", "categories": {
+                "bottle": {"threshold": 12.5, "holdout_images": 42},
+                "cable": {"threshold": 20.0, "holdout_images": 45},
+            }}), encoding="utf-8")
+            self.assertEqual(load_thresholds(path), {"bottle": 12.5, "cable": 20.0})
+
+    def test_missing_file_gives_no_thresholds(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(load_thresholds(Path(directory) / "thresholds.json"), {})
 
 
 if __name__ == "__main__":
