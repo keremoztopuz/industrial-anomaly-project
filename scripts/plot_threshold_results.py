@@ -10,7 +10,6 @@ Run from the repository root: python -m scripts.plot_threshold_results
 
 import argparse
 import json
-import random
 from html import escape
 from pathlib import Path
 
@@ -33,6 +32,7 @@ THEMES = {
     },
 }
 FONT = 'font-family="system-ui, -apple-system, Segoe UI, sans-serif"'
+GOLDEN = 0.6180339887498949  # spreads vertical jitter evenly without randomness
 
 
 def load_scores(model_dir, dataset_root, device, batch_size, rescore):
@@ -189,10 +189,10 @@ def draw_distributions(scores, thresholds, per_category, theme, path):
         bands = {0: (y0 + 30, "normal"), 1: (y0 + 72, "defect")}
         for label, (band_top, _) in bands.items():
             svg.rect(x0, band_top, panel_w, 34, theme["grid"], 3)
-        jitter = random.Random(category)
-        for value, label in zip(values, labels):
+        for position, (value, label) in enumerate(zip(values, labels)):
             band_top, color = bands[label]
-            svg.dot(scale(value), band_top + 5 + jitter.random() * 24, 2.6, theme[color])
+            offset = (position * GOLDEN) % 1
+            svg.dot(scale(value), band_top + 5 + offset * 24, 2.6, theme[color])
         x = scale(threshold)
         svg.line(x, y0 + 24, x, y0 + 112, theme["ink2"], 1.5, "4 3")
         svg.text(x, y0 + 124, f"{threshold:.1f}", 10, "ink2", "middle")
@@ -209,6 +209,9 @@ def main():
     parser.add_argument("--device", default=default_device())
     parser.add_argument("--rescore", action="store_true", help="Ignore cached test_scores.json")
     args = parser.parse_args()
+    output_dir = args.output_dir.resolve()
+    if not output_dir.is_relative_to(Path.cwd().resolve()):
+        parser.error("--output-dir must be inside the current directory")
 
     thresholds = {category: values["threshold"] for category, values in json.loads(
         (args.model_dir / "thresholds.json").read_text(encoding="utf-8"))["categories"].items()}
@@ -223,12 +226,12 @@ def main():
               ("true_positive", "false_positive", "true_negative", "false_negative")}
     print(totals)
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
     for name, theme in THEMES.items():
-        draw_confusion(totals, theme, args.output_dir / f"threshold_confusion_{name}.svg")
-        draw_rates(per_category, theme, args.output_dir / f"threshold_rates_{name}.svg")
+        draw_confusion(totals, theme, output_dir / f"threshold_confusion_{name}.svg")
+        draw_rates(per_category, theme, output_dir / f"threshold_rates_{name}.svg")
         draw_distributions(scores, thresholds, per_category, theme,
-                           args.output_dir / f"threshold_scores_{name}.svg")
+                           output_dir / f"threshold_scores_{name}.svg")
 
 
 if __name__ == "__main__":
