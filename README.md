@@ -4,6 +4,8 @@ Unsupervised defect detection on [MVTec AD](https://www.mvtec.com/company/resear
 
 The model sees only defect-free images during fitting. It flags a test image as anomalous when parts of it do not look like anything in its memory of normal images. It outputs an image-level score ("is this part defective?") and a pixel-level heat map ("where is the defect?").
 
+**Live API:** [anomaly-api-sw4p2ayosa-ew.a.run.app/docs](https://anomaly-api-sw4p2ayosa-ew.a.run.app/docs). Upload an image from the interactive docs page and pick a category. The service scales to zero when idle, so the first request after a quiet period takes about 30 seconds while the models load.
+
 ## Results
 
 All 15 MVTec AD categories, single seed (42), 256 × 256 images, Apple M4 (MPS). AUROC is the probability that a random defective sample scores higher than a random normal one: 1.0 is perfect, 0.5 is chance.
@@ -41,12 +43,15 @@ patchcore.py              PatchCore model: feature extraction, bank selection, s
 mvtec_dataset.py          PyTorch dataset for the FiftyOne export of MVTec AD
 anomaly_metrics.py        Exact image and pixel AUROC
 run_pipeline.py           Prefect flow: fit, save, evaluate and write a run manifest
+api/service.py            FastAPI service that serves the saved banks
+Dockerfile                CPU-only image for the service
+requirements-api.in       Serving dependencies; compiled to the hashed requirements-api.lock
 scripts/
   build_patchcore.py      Build memory banks without evaluating
   visualize_anomalies.py  Render example images with masks and anomaly overlays
   dataset_summary.py      Count images per category, split and defect
   validate_dataset.py     Decode every image and mask and check their sizes
-tests/                    Unit tests (no dataset or model weights needed)
+tests/                    Unit and API tests (no dataset or model weights needed)
 reports/                  Experiment write-ups
 ```
 
@@ -117,13 +122,59 @@ Render anomaly overlays from the saved banks into `<output-root>/visualizations/
 
 The defaults reproduce the original baseline. Banks saved before an option existed load with that option's default.
 
+## Serving API
+
+`api/service.py` loads every `<category>.pt` bank from `MODEL_DIR` at startup and shares one backbone between them (about 1 GB of RAM for all 15 categories).
+
+| Endpoint | Returns |
+| --- | --- |
+| `GET /health` | `{"status": "healthy"}` |
+| `GET /categories` | Sorted list of loaded categories |
+| `POST /predict/{category}` | Image score for an uploaded image (`upload_file` form field) |
+
+Unknown categories return 404 and files that are not readable images return 400.
+
+```sh
+curl -X POST -F "upload_file=@bottle.png" \
+  https://anomaly-api-sw4p2ayosa-ew.a.run.app/predict/bottle
+# {"category": "bottle", "filename": "bottle.png", "anomaly_score": 24.67}
+```
+
+Run it locally against saved banks:
+
+```sh
+PYTHONPATH=. MODEL_DIR=artifacts/best/patchcore .venv/bin/python api/service.py
+```
+
+### Docker
+
+```sh
+docker build -t anomaly-api .
+docker run --rm -p 8000:8000 \
+  -v "$(pwd)/artifacts/best/patchcore:/models:ro" anomaly-api
+```
+
+Then open http://127.0.0.1:8000/docs. The image installs CPU-only PyTorch from the hash-pinned `requirements-api.lock`, downloads the Wide ResNet weights at build time so containers start without network access, and runs as a non-root user. The banks are not part of the image: they are mounted at `/models`, so new banks need no rebuild. `HOST`, `PORT` and `MODEL_DIR` can be overridden with environment variables.
+
+### Deployment
+
+```
+GitHub main ──▶ Cloud Build (Dockerfile) ──▶ Artifact Registry ──▶ Cloud Run ──▶ public HTTPS URL
+                                                                       ▲
+                                     Cloud Storage bucket (banks) ─────┘ mounted read-only at /models
+```
+
+The live service runs on Google Cloud Run in `europe-west1`. A Cloud Build trigger builds the Dockerfile and deploys a new revision on every push to `main`. The banks live in a Cloud Storage bucket that Cloud Run mounts read-only at `/models`, the same way `-v` works locally.
+
+The service has 2 GiB of memory and 1 vCPU. It scales between 0 and 1 instances, which keeps the cost close to zero and caps it under load, and the project has a budget alert.
+
 ## Tests
 
 ```sh
 .venv/bin/python -m unittest discover -s tests
 ```
 
-The tests mock the backbone, so they need neither the dataset nor the pretrained weights.
+The tests mock the backbone, so they need neither the dataset nor the pretrained weights. The API tests in `tests/test_service.py` replace the banks with fake models and skip the startup that loads them.
 
 ## Limitations
 
