@@ -137,8 +137,74 @@ okunmalıdır.
 görüntü) puan dağılımının üst ucunu kaçırıp eşiği düşük bırakabilir; tek bir aykırı
 örnekte (`pill`) ise eşiği gereğinden yukarı itebilir. Aykırı değerlere daha dayanıklı
 kurallar (ör. ortalama + 3 standart sapma, bir yüzdelik veya k-katlı bölme) MLflow ile
-ayrı deneyler olarak karşılaştırılacak. Kural, test sonuçlarına bakılarak değil,
+ayrı deneyler olarak karşılaştırılmalı (aşağıdaki bölüme bakın). Kural, test sonuçlarına bakılarak değil,
 önceden yazılmış bir gerekçeyle seçilmelidir.
+
+## Kural karşılaştırması: max ve medyan + k·MAD — 2026-10-04
+
+**Soru:** Aykırı değerlere dayanıklı bir kural (medyan + k·MAD) `pill` gibi kategorilerde
+eşiği düzeltip genel sonucu iyileştirir mi?
+
+**Protokol** (sonuçlara bakmadan önce [`scripts/compare_threshold_rules.py`](../scripts/compare_threshold_rules.py)
+içine yazıldı):
+
+- Adaylar: şu anki `max` kuralı ve `medyan + k · 1,4826 · MAD`, k ∈ {2, 3, 4, 5, 6}.
+  1,4826 çarpanı, MAD'i normal dağılımda standart sapmayla aynı ölçeğe getirir. Hepsi
+  aynı ayrılan sağlam eğitim puanlarını kullanır.
+- Her kategorinin test görüntüleri, sağlam ve kusurlu ayrı ayrı olmak üzere ikiye
+  bölündü (seed 42). Adaylar yalnızca **doğrulama** yarısında yarıştı.
+- Kazanan: 15 kategorinin ortalama balanced accuracy'si en yüksek aday. Eşitlikte
+  daha temkinli kural (büyük k; en temkinlisi `max`).
+- Bütün kategoriler için tek bir k seçildi. Kategori başına k seçmek, bazı
+  kategorilerde yalnızca 6 sağlam doğrulama görüntüsü olduğu için ezbere açıktı.
+- Kazanan ve şu anki kural, **final** yarısında bir kez ölçüldü.
+
+Balanced accuracy = (recall + sağlamları doğru tanıma oranı) / 2. Her aday MLflow'daki
+`threshold-rules` deneyinde ayrı bir run olarak kayıtlıdır.
+
+**Doğrulama yarısı:**
+
+| Kural | Balanced accuracy | Recall | Yanlış alarm |
+| --- | ---: | ---: | ---: |
+| **max** | **0,890** | 0,847 | 0,076 |
+| medyan + 2·MAD | 0,885 | 0,929 | 0,157 |
+| medyan + 3·MAD | 0,884 | 0,872 | 0,102 |
+| medyan + 4·MAD | 0,879 | 0,799 | 0,051 |
+| medyan + 5·MAD | 0,865 | 0,746 | 0,034 |
+| medyan + 6·MAD | 0,843 | 0,684 | 0,025 |
+
+**Sonuç:** `max` kazandı; canlıdaki eşikler değişmedi. Final yarısında `max`: balanced
+accuracy 0,907, recall 0,845, yanlış alarm 0,061.
+
+**Neden?** Kategori bazında (doğrulama yarısı, balanced accuracy):
+
+| Kategori | max | medyan + 2·MAD | medyan + 3·MAD | medyan + 4·MAD |
+| --- | ---: | ---: | ---: | ---: |
+| pill | 0,718 | **0,894** | 0,782 | 0,697 |
+| capsule | 0,873 | **0,964** | 0,936 | 0,864 |
+| grid | 0,897 | **0,966** | 0,862 | 0,776 |
+| transistor | **0,958** | 0,833 | 0,917 | **0,958** |
+| wood | **0,950** | 0,850 | 0,900 | 0,900 |
+| carpet | 0,714 | 0,643 | 0,679 | **0,857** |
+
+MAD beklendiği gibi `pill`'deki tek aykırı görüntünün etkisini kaldırdı (0,718 → 0,894).
+Ama sağlam puanların sağa çarpık dağıldığı kategorilerde (`transistor`, `wood`) dağılımın
+ortasına bakarak eşiği fazla sıkı koydu ve yanlış alarmları artırdı. Her k bazı
+kategorilere iyi, bazılarına kötü geldi; ortalamada hiçbiri `max`'ı geçemedi.
+
+Bu sonuç `pill` sorununun basit bir kural değişikliğiyle çözülmediğini gösterir. Daha
+umut verici yollar: daha fazla kalibrasyon verisi (k-katlı bölme) veya ince kusurları
+daha iyi gören bir model (ör. daha yüksek çözünürlük).
+
+Bu karşılaştırma için kalibrasyon yeniden çalıştırıldı ve ayrılan puanlar
+`thresholds.json`'a `holdout_scores` olarak eklendi; eşikler ilk koşuyla birebir aynı
+çıktı. Test yarılarını, kuralları ve MLflow kaydını üretmek için:
+
+```sh
+.venv/bin/python -m scripts.calibrate_thresholds --device mps
+.venv/bin/python -m scripts.plot_threshold_results          # test_scores.json
+.venv/bin/python -m scripts.compare_threshold_rules --write  # --write yalnızca kazanan max değilse yazar
+```
 
 ## Sınırlar
 
