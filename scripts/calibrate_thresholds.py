@@ -22,7 +22,7 @@ from patchcore import PatchCore
 
 def split_indices(count, holdout_fraction, seed):
     """Return (fit, holdout) index lists from a seeded shuffle; both are nonempty."""
-    if not 0 < holdout_fraction < 1:
+    if holdout_fraction <= 0 or holdout_fraction >= 1:
         raise ValueError("holdout_fraction must be between 0 and 1")
     if count < 2:
         raise ValueError("need at least two images to hold some out")
@@ -50,7 +50,7 @@ def confusion(scores, labels, threshold):
 
 def score(model, dataset, batch_size):
     scores, labels = [], []
-    for batch in DataLoader(dataset, batch_size=batch_size, shuffle=False):
+    for batch in DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0):
         batch_scores, _ = model.predict(batch["image"])
         scores.append(batch_scores)
         labels.append(torch.as_tensor(batch["label"]))
@@ -66,7 +66,8 @@ def calibrate_category(category, args, backbone):
     model = PatchCore(args.device, deployed.max_patches, deployed.projection_dim,
                       deployed.seed, deployed.selection, deployed.neighborhood,
                       deployed.border, backbone=deployed.backbone)
-    model.fit(DataLoader(Subset(train, fit), batch_size=args.batch_size, shuffle=False))
+    model.fit(DataLoader(Subset(train, fit), batch_size=args.batch_size,
+                         shuffle=False, num_workers=0))
     holdout_scores, _ = score(model, Subset(train, holdout), args.batch_size)
     threshold = float(holdout_scores.max())
 
@@ -79,6 +80,14 @@ def calibrate_category(category, args, backbone):
         "holdout_score_mean": float(holdout_scores.mean()),
         "holdout_score_max": threshold,
     }, confusion(test_scores, test_labels, threshold)
+
+
+def default_device():
+    if torch.cuda.is_available():
+        return "cuda"
+    if torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
 
 
 def write_json(path, data):
@@ -97,8 +106,7 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--image-size", type=int, default=256)
-    parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else
-                        "mps" if torch.backends.mps.is_available() else "cpu")
+    parser.add_argument("--device", default=default_device())
     args = parser.parse_args()
     categories = [args.category] if args.category else sorted(
         path.stem for path in args.model_dir.glob("*.pt"))

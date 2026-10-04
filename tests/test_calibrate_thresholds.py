@@ -10,8 +10,8 @@ class SplitIndicesTests(unittest.TestCase):
         fit, holdout = split_indices(10, 0.2, seed=42)
         self.assertEqual(len(holdout), 2)
         self.assertEqual(sorted(fit + holdout), list(range(10)))
-        self.assertEqual((fit, holdout), split_indices(10, 0.2, seed=42))
-        self.assertNotEqual(holdout, split_indices(10, 0.2, seed=7)[1])
+        self.assertEqual(split_indices(10, 0.2, seed=42), (fit, holdout))
+        self.assertNotEqual(split_indices(10, 0.2, seed=7)[1], holdout)
 
     def test_rounds_holdout_up_and_keeps_one_fit_image(self):
         self.assertEqual(len(split_indices(11, 0.2, seed=0)[1]), 3)
