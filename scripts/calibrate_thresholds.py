@@ -16,8 +16,8 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader, Subset
 
-from mvtec_dataset import MVTecDataset
-from patchcore import PatchCore
+from anomaly.mvtec_dataset import MVTecDataset
+from anomaly.patchcore import PatchCore
 
 
 def split_indices(count, holdout_fraction, seed):

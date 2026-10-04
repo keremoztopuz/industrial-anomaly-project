@@ -1,4 +1,7 @@
-"""Run PatchCore and anomaly evaluation for one or all MVTec categories."""
+"""Run PatchCore and anomaly evaluation for one or all MVTec categories.
+
+Run from the repository root: python -m anomaly.run_pipeline
+"""
 import mlflow
 
 import argparse
@@ -12,9 +15,9 @@ import torch
 from prefect import flow, task
 from torch.utils.data import DataLoader
 
-from anomaly_metrics import evaluate_category
-from mvtec_dataset import MVTecDataset
-from patchcore import PatchCore
+from anomaly.metrics import evaluate_category
+from anomaly.mvtec_dataset import MVTecDataset
+from anomaly.patchcore import PatchCore
 
 
 def categories_from_metadata(dataset_root):
@@ -96,7 +99,7 @@ def run_pipeline(dataset_root, output_root, image_size=256, batch_size=8,
         temporary.write_text(json.dumps(results, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         temporary.replace(summary)
 
-        source_root = Path(__file__).resolve().parent
+        source_root = Path(__file__).resolve().parents[1]
         try:
             git = subprocess.run(
                 ["git", "-C", str(source_root), "rev-parse", "HEAD"],
@@ -152,9 +155,9 @@ def run_pipeline(dataset_root, output_root, image_size=256, batch_size=8,
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-root", type=Path,
-                        default=Path(__file__).resolve().parent / "data/mvtec-ad")
+                        default=Path(__file__).resolve().parents[1] / "data/mvtec-ad")
     parser.add_argument("--output-root", type=Path,
-                        default=Path(__file__).resolve().parent / "artifacts")
+                        default=Path(__file__).resolve().parents[1] / "artifacts")
     parser.add_argument("--category", help="Run one category; omit to run all categories")
     parser.add_argument("--image-size", type=int, default=256)
     parser.add_argument("--batch-size", type=int, default=8)

@@ -10,8 +10,8 @@ from pathlib import Path
 import torch
 from PIL import Image, ImageDraw
 
-from mvtec_dataset import MVTecDataset
-from patchcore import PatchCore
+from anomaly.mvtec_dataset import MVTecDataset
+from anomaly.patchcore import PatchCore
 
 
 def render_category(dataset_root, output_root, category, image_size, device):

@@ -76,7 +76,7 @@ class MVTecDataset(Dataset):
 
 def main():
     parser = argparse.ArgumentParser(description="Check the first preprocessed batch of each MVTec category.")
-    parser.add_argument("--dataset-root", type=Path, default=Path(__file__).resolve().parent / "data/mvtec-ad")
+    parser.add_argument("--dataset-root", type=Path, default=Path(__file__).resolve().parents[1] / "data/mvtec-ad")
     parser.add_argument("--category", help="Omit to check all categories")
     parser.add_argument("--split", choices=("train", "test"), default="train")
     parser.add_argument("--image-size", type=int, default=256)

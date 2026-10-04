@@ -10,8 +10,8 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 
-from mvtec_dataset import MVTecDataset
-from patchcore import PatchCore
+from anomaly.mvtec_dataset import MVTecDataset
+from anomaly.patchcore import PatchCore
 
 
 def main():

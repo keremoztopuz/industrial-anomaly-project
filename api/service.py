@@ -6,8 +6,8 @@ from pathlib import Path
 from fastapi import FastAPI, UploadFile, Request, HTTPException
 import uvicorn
 
-from mvtec_dataset import build_transform
-from patchcore import PatchCore
+from anomaly.mvtec_dataset import build_transform
+from anomaly.patchcore import PatchCore
 
 from io import BytesIO
 from PIL import Image

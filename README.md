@@ -40,10 +40,11 @@ There is no loss function and no gradient training: everything the model "learns
 ## Repository layout
 
 ```
-patchcore.py              PatchCore model: feature extraction, bank selection, scoring, save/load
-mvtec_dataset.py          PyTorch dataset for the FiftyOne export of MVTec AD
-anomaly_metrics.py        Exact image and pixel AUROC
-run_pipeline.py           Prefect flow: fit, save, evaluate and write a run manifest
+anomaly/
+  patchcore.py            PatchCore model: feature extraction, bank selection, scoring, save/load
+  mvtec_dataset.py        PyTorch dataset for the FiftyOne export of MVTec AD
+  metrics.py              Exact image and pixel AUROC
+  run_pipeline.py         Prefect flow: fit, save, evaluate, write a run manifest and log to MLflow
 api/service.py            FastAPI service that serves the saved banks
 Dockerfile                CPU-only image for the service
 requirements-api.in       Serving dependencies; compiled to the hashed requirements-api.lock
@@ -94,7 +95,7 @@ MVTec AD is licensed under [CC BY-NC-SA 4.0](https://creativecommons.org/license
 Run the best configuration on every category:
 
 ```sh
-.venv/bin/python run_pipeline.py \
+.venv/bin/python -m anomaly.run_pipeline \
   --dataset-root data/mvtec-ad --output-root artifacts/best \
   --device mps --max-patches 16384 --selection coreset \
   --neighborhood 3 --border 2
@@ -182,7 +183,7 @@ The service has 2 GiB of memory and 1 vCPU. It scales between 0 and 1 instances,
 
 ## Experiment tracking and model registry
 
-Every `run_pipeline.py` run is logged to MLflow in the `patchcore-mvtec` experiment: settings as params, image and pixel AUROC per category and their means as metrics, git commit and dataset hash as tags, and `metrics.json` and `manifest.json` as artifacts. `--tracking-uri` defaults to a local `sqlite:///mlflow.db`. Runs made before tracking existed were added with `scripts/backfill_mlflow.py`, so every report table can be compared in one place (filter on `tags.num_categories = "15"` to compare full runs). The threshold rule comparison is logged in a separate `threshold-rules` experiment.
+Every `anomaly.run_pipeline` run is logged to MLflow in the `patchcore-mvtec` experiment: settings as params, image and pixel AUROC per category and their means as metrics, git commit and dataset hash as tags, and `metrics.json` and `manifest.json` as artifacts. `--tracking-uri` defaults to a local `sqlite:///mlflow.db`. Runs made before tracking existed were added with `scripts/backfill_mlflow.py`, so every report table can be compared in one place (filter on `tags.num_categories = "15"` to compare full runs). The threshold rule comparison is logged in a separate `threshold-rules` experiment.
 
 ```sh
 .venv/bin/mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5001   # macOS uses port 5000 for AirPlay
