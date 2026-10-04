@@ -15,6 +15,8 @@ from PIL import Image
 import torch
 
 MODEL_DIR = Path(os.environ.get("MODEL_DIR", "artifacts/border-exclusion/coreset-16384-n3-b2/patchcore"))
+MODEL_NAME = os.environ.get("MODEL_NAME", "patchcore-mvtec")
+MODEL_VERSION = os.environ.get("MODEL_VERSION", "local")
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", 8000))
 
@@ -53,6 +55,13 @@ def health_check():
 @app.get("/categories")
 def get_categories(request: Request):
     return {"categories": sorted(request.app.state.models.keys())}
+
+@app.get("/model")
+def get_model(request: Request):
+    return {"name": MODEL_NAME,
+            "version": MODEL_VERSION,
+            "model_dir": str(MODEL_DIR),
+            "categories": len(request.app.state.models.keys())}
 
 @app.post("/predict/{category}")
 def predict(category: str, upload_file: UploadFile, request: Request):

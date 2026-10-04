@@ -1,0 +1,58 @@
+import tempfile
+import unittest
+from contextlib import redirect_stdout
+from io import StringIO
+from pathlib import Path
+from unittest import mock
+
+from mlflow.tracking import MlflowClient
+
+from scripts import register_model
+
+
+class RegisterModelTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        root = Path(self.temporary.name)
+        self.uri = f"sqlite:///{root / 'mlflow.db'}"
+        self.client = MlflowClient(self.uri)
+        experiment_id = self.client.create_experiment(
+            "patchcore-mvtec", artifact_location=(root / "store").as_uri())
+        self.run_id = self.client.create_run(
+            experiment_id, tags={"source_dir": "border-exclusion/best"}).info.run_id
+        self.model_dir = root / "banks"
+        self.model_dir.mkdir()
+        (self.model_dir / "bottle.pt").write_bytes(b"bank")
+        (self.model_dir / "thresholds.json").write_text("{}", encoding="utf-8")
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def register(self, source_dir="border-exclusion/best"):
+        argv = ["register", "--source-dir", source_dir, "--model-dir", str(self.model_dir),
+                "--tracking-uri", self.uri]
+        with mock.patch("sys.argv", argv), redirect_stdout(StringIO()):
+            register_model.main()
+
+    def test_registers_banks_as_a_version_with_the_alias(self):
+        self.register()
+        version = self.client.get_model_version_by_alias("patchcore-mvtec", "production")
+        self.assertEqual(str(version.version), "1")
+        self.assertEqual(version.run_id, self.run_id)
+        self.assertEqual(
+            sorted(item.path for item in self.client.list_artifacts(self.run_id, "model")),
+            ["model/bottle.pt", "model/thresholds.json"])
+
+    def test_registering_again_adds_a_version_and_moves_the_alias(self):
+        self.register()
+        self.register()
+        self.assertEqual(
+            str(self.client.get_model_version_by_alias("patchcore-mvtec", "production").version), "2")
+
+    def test_unknown_source_dir_is_an_error(self):
+        with self.assertRaises(ValueError):
+            self.register("does/not/exist")
+
+
+if __name__ == "__main__":
+    unittest.main()
