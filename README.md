@@ -267,6 +267,15 @@ The tests mock the backbone, so they need neither the dataset nor the pretrained
 
 - Every result comes from a single seed, so there are no confidence intervals. Differences of about ±0.01 may be noise.
 - MVTec AD has no validation split. The `--border` value was chosen by looking at test results, so the best row above may slightly overstate performance on unseen data.
-- One threshold rule does not fit every category: it misses about half of the `pill` defects and flags over 40% of normal `carpet` and `toothbrush` test images. The held-out sets are small (12–79 images), so the highest held-out score is a noisy estimate.
+- One threshold rule does not fit every category: it flags over 40% of normal `carpet` and `toothbrush` test images, and still misses about a third of `pill` defects in v2 (half in v1). The held-out sets are small (12–79 images), so the highest held-out score is a noisy estimate.
 - A defect that lies only within the excluded border strip (about 16 pixels at 256 × 256) does not affect the image score. It still shows up in the anomaly map.
 - Images are resized without the center crop used in the PatchCore paper, which reports about 0.99 image AUROC.
+
+## Future work
+
+- **Hosted MLflow.** Experiment tracking and the model registry live in a local SQLite file (`mlflow.db`). The banks are safe in Cloud Storage, but run history and version lineage would be lost with that file. A tracking server with a managed database and a bucket artifact store would make them shared and durable, and `deploy_model.py` could run from CI instead of a laptop.
+- **Infrastructure as code.** The Cloud Run service is deployed by Cloud Build, but the drift job, the scheduler, the bucket mount, the IAM role and the five alert policies were created once from the command line. Describing them in Terraform would make the whole setup reviewable and reproducible.
+- **Drift reference from the line itself.** The drift reference comes from training images, which miss normal day-to-day lighting variation ([`drift_simulation.md`](reports/drift_simulation.md)). A reference built from the first weeks of real traffic would allow alarms on brightness and contrast and an automatic camera-versus-defect diagnosis.
+- **Retraining loop.** A drift alarm currently ends with an email. The next step is a pipeline that refits the affected category on recent normal images, compares it with the live version under the same protocol, and registers it for review.
+- **Per-category tuning.** Only `pill` was tried at a higher resolution. Other weak categories (`screw`, `capsule`, `toothbrush`) could get the same comparison, and threshold calibration could use k-fold held-out scores instead of one 20% split.
+- **API hardening.** The demo endpoint is public with one instance and no authentication. A production service would add an API key or IAM authentication and request limits.
