@@ -35,7 +35,7 @@ def run_category(category, dataset_root, output_root, image_size, batch_size,
     train = MVTecDataset(dataset_root, category, "train", image_size)
     model = PatchCore(device=device, max_patches=max_patches,
                       projection_dim=projection_dim, seed=seed, selection=selection,
-                      neighborhood=neighborhood, border=border)
+                      neighborhood=neighborhood, border=border, image_size=image_size)
     model.fit(DataLoader(train, batch_size=batch_size, shuffle=False, num_workers=0))
     model.save(output_root / "patchcore" / f"{category}.pt")
 

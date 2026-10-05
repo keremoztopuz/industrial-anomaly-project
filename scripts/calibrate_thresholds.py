@@ -60,21 +60,23 @@ def score(model, dataset, batch_size):
 @torch.inference_mode()
 def calibrate_category(category, args, backbone):
     deployed = PatchCore.load(args.model_dir / f"{category}.pt", args.device, backbone)
-    train = MVTecDataset(args.dataset_root, category, "train", args.image_size)
+    train = MVTecDataset(args.dataset_root, category, "train", deployed.image_size)
     fit, holdout = split_indices(len(train), args.holdout_fraction, args.seed)
 
     model = PatchCore(args.device, deployed.max_patches, deployed.projection_dim,
                       deployed.seed, deployed.selection, deployed.neighborhood,
-                      deployed.border, backbone=deployed.backbone)
+                      deployed.border, backbone=deployed.backbone,
+                      image_size=deployed.image_size)
     model.fit(DataLoader(Subset(train, fit), batch_size=args.batch_size,
                          shuffle=False, num_workers=0))
     holdout_scores, _ = score(model, Subset(train, holdout), args.batch_size)
     threshold = float(holdout_scores.max())
 
     test_scores, test_labels = score(deployed, MVTecDataset(
-        args.dataset_root, category, "test", args.image_size), args.batch_size)
+        args.dataset_root, category, "test", deployed.image_size), args.batch_size)
     return deployed.backbone, {
         "threshold": threshold,
+        "image_size": deployed.image_size,
         "fit_images": len(fit),
         "holdout_images": len(holdout),
         "holdout_score_mean": float(holdout_scores.mean()),
@@ -89,6 +91,13 @@ def default_device():
     if torch.backends.mps.is_available():
         return "mps"
     return "cpu"
+
+
+def merge_categories(path, settings, results):
+    """Return the file's contents with `results` replacing only those categories."""
+    existing = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    categories = {**existing.get("categories", {}), **results}
+    return {**existing, **settings, "categories": categories}
 
 
 def write_json(path, data):
@@ -106,7 +115,6 @@ def main():
     parser.add_argument("--holdout-fraction", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--batch-size", type=int, default=8)
-    parser.add_argument("--image-size", type=int, default=256)
     parser.add_argument("--device", default=default_device())
     args = parser.parse_args()
     categories = [args.category] if args.category else sorted(
@@ -124,9 +132,10 @@ def main():
               f"false positive rate {result['false_positive_rate']:.3f}", flush=True)
 
     settings = {"method": "max held-out normal score", "holdout_fraction": args.holdout_fraction,
-                "seed": args.seed, "image_size": args.image_size}
-    write_json(args.model_dir / "thresholds.json", {**settings, "categories": thresholds})
-    write_json(args.model_dir / "threshold_evaluation.json", {**settings, "categories": evaluation})
+                "seed": args.seed}
+    for name, results in (("thresholds.json", thresholds), ("threshold_evaluation.json", evaluation)):
+        path = args.model_dir / name
+        write_json(path, merge_categories(path, settings, results))
 
 
 if __name__ == "__main__":

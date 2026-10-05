@@ -44,7 +44,8 @@ def load_scores(model_dir, dataset_root, device, batch_size, rescore):
         for path in sorted(model_dir.glob("*.pt")):
             model = PatchCore.load(path, device, backbone)
             backbone = model.backbone
-            scores, labels = score(model, MVTecDataset(dataset_root, path.stem, "test"), batch_size)
+            scores, labels = score(model, MVTecDataset(dataset_root, path.stem, "test",
+                                                       model.image_size), batch_size)
             results[path.stem] = {"scores": scores.tolist(), "labels": labels.tolist()}
             print(f"{path.stem}: {len(labels)} test images", flush=True)
     write_json(cache, results)

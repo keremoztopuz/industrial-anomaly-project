@@ -1,8 +1,11 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 import torch
 
-from scripts.calibrate_thresholds import confusion, split_indices
+from scripts.calibrate_thresholds import confusion, merge_categories, split_indices
 
 
 class SplitIndicesTests(unittest.TestCase):
@@ -38,6 +41,25 @@ class ConfusionTests(unittest.TestCase):
         result = confusion(torch.tensor([1.0]), torch.tensor([0]), 0.0)
         self.assertIsNone(result["recall"])
         self.assertEqual(result["false_positive_rate"], 1.0)
+
+
+class MergeCategoriesTests(unittest.TestCase):
+    def test_updates_only_the_given_categories(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "thresholds.json"
+            path.write_text(json.dumps({"method": "old", "categories": {
+                "bottle": {"threshold": 12.8}, "pill": {"threshold": 17.5}}}), encoding="utf-8")
+            merged = merge_categories(path, {"method": "max held-out normal score"},
+                                      {"pill": {"threshold": 15.0, "image_size": 320}})
+        self.assertEqual(merged["method"], "max held-out normal score")
+        self.assertEqual(merged["categories"]["bottle"], {"threshold": 12.8})
+        self.assertEqual(merged["categories"]["pill"], {"threshold": 15.0, "image_size": 320})
+
+    def test_missing_file_starts_empty(self):
+        with tempfile.TemporaryDirectory() as directory:
+            merged = merge_categories(Path(directory) / "none.json", {"seed": 42},
+                                      {"pill": {"threshold": 1.0}})
+        self.assertEqual(merged, {"seed": 42, "categories": {"pill": {"threshold": 1.0}}})
 
 
 if __name__ == "__main__":
