@@ -24,13 +24,21 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(settings.model_version, "local")
         self.assertEqual(settings.host, "127.0.0.1")
         self.assertEqual(settings.port, 8000)
-        self.assertEqual(settings.max_request_bytes, settings.max_upload_bytes + 1024 * 1024)
+        self.assertEqual(
+            settings.max_request_bytes, settings.max_upload_bytes + 1024 * 1024
+        )
 
     def test_environment_variables_override_defaults_case_insensitively(self):
-        with clean_environment(MODEL_DIR="/models/patchcore-mvtec/v2", MODEL_VERSION="2",
-                               port="8080", MAX_UPLOAD_BYTES="5"):
+        with clean_environment(
+            MODEL_DIR="/models/patchcore-mvtec/v2",
+            MODEL_VERSION="2",
+            port="8080",
+            MAX_UPLOAD_BYTES="5",
+        ):
             settings = ApiSettings(_env_file=None)
-        self.assertEqual(settings.model_dir, Path("/models/patchcore-mvtec/v2"))
+        self.assertEqual(
+            settings.model_dir, Path("/models/patchcore-mvtec/v2")
+        )
         self.assertEqual(settings.model_version, "2")
         self.assertEqual(settings.port, 8080)
         self.assertEqual(settings.max_request_bytes, 5 + 1024 * 1024)
@@ -42,7 +50,9 @@ class SettingsTests(unittest.TestCase):
     def test_env_file_is_read_and_unknown_keys_are_ignored(self):
         with tempfile.TemporaryDirectory() as directory:
             env_file = Path(directory) / ".env"
-            env_file.write_text("MODEL_VERSION=7\nSOMETHING_ELSE=1\n", encoding="utf-8")
+            env_file.write_text(
+                "MODEL_VERSION=7\nSOMETHING_ELSE=1\n", encoding="utf-8"
+            )
             with clean_environment():
                 settings = Settings(_env_file=env_file)
         self.assertEqual(settings.model_version, "7")
@@ -52,10 +62,17 @@ class SettingsTests(unittest.TestCase):
             env_file = Path(directory) / ".env"
             env_file.write_text("MODEL_VERSION=7\n", encoding="utf-8")
             with clean_environment(MODEL_VERSION="2"):
-                self.assertEqual(Settings(_env_file=env_file).model_version, "2")
+                self.assertEqual(
+                    Settings(_env_file=env_file).model_version, "2"
+                )
 
     def test_nonpositive_limits_are_rejected(self):
-        for name in ("MAX_UPLOAD_BYTES", "MAX_IMAGE_PIXELS", "MAX_REQUEST_BYTES", "PORT"):
+        for name in (
+            "MAX_UPLOAD_BYTES",
+            "MAX_IMAGE_PIXELS",
+            "MAX_REQUEST_BYTES",
+            "PORT",
+        ):
             with self.subTest(name=name), clean_environment(**{name: "0"}):
                 with self.assertRaises(ValidationError):
                     ApiSettings(_env_file=None)

@@ -20,7 +20,10 @@ def decode_image(file):
             if image.width * image.height > settings.max_image_pixels:
                 raise ImageTooLarge("Image exceeds the pixel limit")
             return image.convert("RGB")
-    except (Image.DecompressionBombError, Image.DecompressionBombWarning) as error:
+    except (
+        Image.DecompressionBombError,
+        Image.DecompressionBombWarning,
+    ) as error:
         raise ImageTooLarge("Image exceeds the pixel limit") from error
     except (OSError, SyntaxError) as error:
         raise ValueError("Invalid image file") from error

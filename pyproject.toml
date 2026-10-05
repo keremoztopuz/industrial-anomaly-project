@@ -1,0 +1,3 @@
+[tool.ruff]
+# Matches flake8 with its default rules, so `ruff format` and `flake8` agree.
+line-length = 79

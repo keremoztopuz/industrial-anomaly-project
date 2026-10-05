@@ -10,7 +10,8 @@ class BodyTooLarge(Exception):
 
 
 def declared_length_error(scope, limit):
-    """Return an error response for a bad or oversized Content-Length header, else None."""
+    """Return an error response for a bad or oversized Content-Length header,
+    else None."""
     for name, value in scope.get("headers", []):
         if name.lower() != b"content-length":
             continue
@@ -21,12 +22,14 @@ def declared_length_error(scope, limit):
         if length < 0:
             return JSONResponse({"detail": "Invalid Content-Length"}, 400)
         if length > limit:
-            return JSONResponse({"detail": "Request exceeds the byte limit"}, 413)
+            return JSONResponse(
+                {"detail": "Request exceeds the byte limit"}, 413
+            )
     return None
 
 
 async def read_body(receive, limit):
-    """Read the whole body, chunked or not; None means the client disconnected."""
+    """Read the whole body, chunked or not; None means a client disconnect."""
     body = bytearray()
     while True:
         message = await receive()
@@ -41,19 +44,25 @@ async def read_body(receive, limit):
 
 
 def replay(body, receive):
-    """Hand the buffered body to the app once, then fall back to the real receive."""
+    """Hand the buffered body to the app once, then fall back to the real
+    receive."""
     pending = [body]
 
     async def receive_buffered():
         if not pending:
             return await receive()
-        return {"type": "http.request", "body": pending.pop(), "more_body": False}
+        return {
+            "type": "http.request",
+            "body": pending.pop(),
+            "more_body": False,
+        }
 
     return receive_buffered
 
 
 class RequestSizeLimit:
-    """Check the complete body before multipart parsing, including chunked uploads."""
+    """Check the complete body before multipart parsing, including chunked
+    uploads."""
 
     def __init__(self, app):
         self.app = app
@@ -65,10 +74,13 @@ class RequestSizeLimit:
         error, body = declared_length_error(scope, limit), None
         if error is None:
             try:
-                # Held in memory, which the limit bounds to about 11 MB per request.
+                # Held in memory, which the limit bounds to about 11 MB per
+                # request.
                 body = await read_body(receive, limit)
             except BodyTooLarge:
-                error = JSONResponse({"detail": "Request exceeds the byte limit"}, 413)
+                error = JSONResponse(
+                    {"detail": "Request exceeds the byte limit"}, 413
+                )
         if error is not None:
             return await error(scope, receive, send)
         if body is None:

@@ -1,6 +1,10 @@
 import unittest
 
-from scripts.reporting.plot_threshold_results import THEMES, luminance, readable_ink
+from scripts.reporting.plot_threshold_results import (
+    THEMES,
+    luminance,
+    readable_ink,
+)
 
 
 class ReadableInkTests(unittest.TestCase):
@@ -13,8 +17,12 @@ class ReadableInkTests(unittest.TestCase):
             for fill in theme["ramp"]:
                 with self.subTest(fill=fill):
                     ink = readable_ink(fill)
-                    lighter, darker = sorted((luminance(fill), luminance(ink)), reverse=True)
-                    self.assertGreaterEqual((lighter + 0.05) / (darker + 0.05), 4.5)
+                    lighter, darker = sorted(
+                        (luminance(fill), luminance(ink)), reverse=True
+                    )
+                    self.assertGreaterEqual(
+                        (lighter + 0.05) / (darker + 0.05), 4.5
+                    )
 
 
 if __name__ == "__main__":

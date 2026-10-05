@@ -1,1 +1,1 @@
-"""Business logic behind the routes: model loading, image decoding, prediction."""
+"""Logic behind the routes: model loading, image decoding, prediction."""

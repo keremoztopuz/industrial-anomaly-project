@@ -15,7 +15,9 @@ from api.services import model_loading
 @asynccontextmanager
 async def lifespan(app):
     app.state.models = model_loading.load_models(settings.model_dir)
-    app.state.thresholds = load_thresholds(settings.model_dir / "thresholds.json")
+    app.state.thresholds = load_thresholds(
+        settings.model_dir / "thresholds.json"
+    )
     yield
 
 

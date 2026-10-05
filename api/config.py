@@ -1,10 +1,13 @@
-"""API settings: the shared settings plus the HTTP server and the upload limits."""
+"""API settings: the shared settings plus the HTTP server and the upload
+limits."""
 
 from pydantic import PositiveInt, model_validator
 
 from anomaly.settings import Settings
 
-REQUEST_OVERHEAD_BYTES = 1024 * 1024  # multipart headers, on top of the image bytes
+REQUEST_OVERHEAD_BYTES = (
+    1024 * 1024
+)  # multipart headers, on top of the image bytes
 
 
 class ApiSettings(Settings):
@@ -17,7 +20,9 @@ class ApiSettings(Settings):
     @model_validator(mode="after")
     def default_request_limit(self):
         if self.max_request_bytes is None:
-            self.max_request_bytes = self.max_upload_bytes + REQUEST_OVERHEAD_BYTES
+            self.max_request_bytes = (
+                self.max_upload_bytes + REQUEST_OVERHEAD_BYTES
+            )
         return self
 
 

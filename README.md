@@ -90,7 +90,7 @@ scripts/                      Command line tools, grouped by what they work on
   reporting/                  plot_threshold_results, visualize_anomalies
 tests/                        Mirrors the packages: api/, anomaly/, scripts/; support/ holds shared fakes
 reports/                      Experiment write-ups
-Dockerfile, requirements-*.in / .lock, .flake8, .env.example
+Dockerfile, requirements-*.in / .lock, pyproject.toml, .env.example
 ```
 
 Each layer has one job. Routes only deal with HTTP and delegate to services; services do the work; `anomaly` knows nothing about HTTP; scripts are thin command line wrappers that call `anomaly` and never import each other (shared code lives in `anomaly/` or `scripts/cloud.py`). The serving image copies only `anomaly/` and `api/`.
@@ -322,7 +322,7 @@ uv pip check
 .venv/bin/python -m pip_audit --no-deps --disable-pip -r requirements.txt
 ```
 
-Flake8 uses a 99-character line limit (`.flake8`); no error categories are suppressed. Install `flake8==7.4.1` and `pip-audit==2.9.0` in a local development environment when needed; the CI lock already includes them. Lock regeneration commands are at the top of `requirements-api.in` and `requirements-ci.in`. NumPy, HTTPX (development/tests) and Pydantic are explicit direct dependencies. The extra direct-dependency audit checks the public Torch/Torchvision release versions because PyPI does not resolve their `+cpu` wheel versions during auditing; this is an advisory lookup, not a wheel binary scan.
+Flake8 runs with its default rules (79-character lines) and no configuration file, so nothing is suppressed or relaxed; `ruff format` is configured in `pyproject.toml` to produce the same style. Install `flake8==7.4.1` and `pip-audit==2.9.0` in a local development environment when needed; the CI lock already includes them. Lock regeneration commands are at the top of `requirements-api.in` and `requirements-ci.in`. NumPy, HTTPX (development/tests) and Pydantic are explicit direct dependencies. The extra direct-dependency audit checks the public Torch/Torchvision release versions because PyPI does not resolve their `+cpu` wheel versions during auditing; this is an advisory lookup, not a wheel binary scan.
 
 `build_patchcore --image-size` is persisted in each bank. `visualize_anomalies` defaults to the loaded bank's size and rejects a conflicting explicit `--image-size`. Legacy banks without metadata still load as 256; do not rewrite them without training evidence.
 

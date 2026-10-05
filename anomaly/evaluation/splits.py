@@ -6,13 +6,16 @@ import torch
 
 
 def split_indices(count, holdout_fraction, seed):
-    """Return (fit, holdout) index lists from a seeded shuffle; both are nonempty."""
+    """Return (fit, holdout) index lists from a seeded shuffle; both are
+    nonempty."""
     if count < 2:
         raise ValueError("need at least two images to hold some out")
     if not 0.0 < float(holdout_fraction) < 1.0:
         raise ValueError("holdout_fraction must be between 0 and 1")
     holdout_size = min(count - 1, max(1, math.ceil(count * holdout_fraction)))
-    order = torch.randperm(count, generator=torch.Generator().manual_seed(seed)).tolist()
+    order = torch.randperm(
+        count, generator=torch.Generator().manual_seed(seed)
+    ).tolist()
     return sorted(order[holdout_size:]), sorted(order[:holdout_size])
 
 

@@ -5,7 +5,11 @@ from pathlib import Path
 
 import torch
 
-from scripts.modeling.calibrate_thresholds import confusion, merge_categories, split_indices
+from scripts.modeling.calibrate_thresholds import (
+    confusion,
+    merge_categories,
+    split_indices,
+)
 
 
 class SplitIndicesTests(unittest.TestCase):
@@ -29,7 +33,9 @@ class SplitIndicesTests(unittest.TestCase):
 
 class ConfusionTests(unittest.TestCase):
     def test_counts_strictly_above_threshold_as_anomalous(self):
-        result = confusion(torch.tensor([1.0, 2.0, 3.0, 4.0]), torch.tensor([0, 1, 0, 1]), 2.0)
+        result = confusion(
+            torch.tensor([1.0, 2.0, 3.0, 4.0]), torch.tensor([0, 1, 0, 1]), 2.0
+        )
         self.assertEqual(result["true_positive"], 1)
         self.assertEqual(result["false_negative"], 1)
         self.assertEqual(result["false_positive"], 1)
@@ -47,19 +53,40 @@ class MergeCategoriesTests(unittest.TestCase):
     def test_updates_only_the_given_categories(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "thresholds.json"
-            path.write_text(json.dumps({"method": "old", "categories": {
-                "bottle": {"threshold": 12.8}, "pill": {"threshold": 17.5}}}), encoding="utf-8")
-            merged = merge_categories(path, {"method": "max held-out normal score"},
-                                      {"pill": {"threshold": 15.0, "image_size": 320}})
+            path.write_text(
+                json.dumps(
+                    {
+                        "method": "old",
+                        "categories": {
+                            "bottle": {"threshold": 12.8},
+                            "pill": {"threshold": 17.5},
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            merged = merge_categories(
+                path,
+                {"method": "max held-out normal score"},
+                {"pill": {"threshold": 15.0, "image_size": 320}},
+            )
         self.assertEqual(merged["method"], "max held-out normal score")
         self.assertEqual(merged["categories"]["bottle"], {"threshold": 12.8})
-        self.assertEqual(merged["categories"]["pill"], {"threshold": 15.0, "image_size": 320})
+        self.assertEqual(
+            merged["categories"]["pill"],
+            {"threshold": 15.0, "image_size": 320},
+        )
 
     def test_missing_file_starts_empty(self):
         with tempfile.TemporaryDirectory() as directory:
-            merged = merge_categories(Path(directory) / "none.json", {"seed": 42},
-                                      {"pill": {"threshold": 1.0}})
-        self.assertEqual(merged, {"seed": 42, "categories": {"pill": {"threshold": 1.0}}})
+            merged = merge_categories(
+                Path(directory) / "none.json",
+                {"seed": 42},
+                {"pill": {"threshold": 1.0}},
+            )
+        self.assertEqual(
+            merged, {"seed": 42, "categories": {"pill": {"threshold": 1.0}}}
+        )
 
 
 if __name__ == "__main__":

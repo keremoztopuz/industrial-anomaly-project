@@ -11,8 +11,12 @@ class WriteJsonTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "out.json"
             write_json(path, {"b": 1, "a": 2})
-            self.assertEqual(path.read_text(encoding="utf-8"), '{\n  "a": 2,\n  "b": 1\n}\n')
-            self.assertEqual(json.loads(path.read_text(encoding="utf-8")), {"a": 2, "b": 1})
+            self.assertEqual(
+                path.read_text(encoding="utf-8"), '{\n  "a": 2,\n  "b": 1\n}\n'
+            )
+            self.assertEqual(
+                json.loads(path.read_text(encoding="utf-8")), {"a": 2, "b": 1}
+            )
             self.assertFalse(path.with_suffix(".json.tmp").exists())
 
 

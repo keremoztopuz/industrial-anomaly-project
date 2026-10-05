@@ -6,7 +6,9 @@ from torch.utils.data import DataLoader
 
 def score(model, dataset, batch_size):
     scores, labels = [], []
-    for batch in DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0):
+    for batch in DataLoader(
+        dataset, batch_size=batch_size, shuffle=False, num_workers=0
+    ):
         batch_scores, _ = model.predict(batch["image"])
         scores.append(batch_scores)
         labels.append(torch.as_tensor(batch["label"]))
@@ -25,8 +27,12 @@ def confusion(scores, labels, threshold):
     }
     positives = counts["true_positive"] + counts["false_negative"]
     negatives = counts["false_positive"] + counts["true_negative"]
-    counts["recall"] = counts["true_positive"] / positives if positives else None
-    counts["false_positive_rate"] = counts["false_positive"] / negatives if negatives else None
+    counts["recall"] = (
+        counts["true_positive"] / positives if positives else None
+    )
+    counts["false_positive_rate"] = (
+        counts["false_positive"] / negatives if negatives else None
+    )
     return counts
 
 

@@ -1,4 +1,5 @@
-"""A fake model, a client without model loading and in-memory images for API tests."""
+"""A fake model, a client without model loading and in-memory images for API
+tests."""
 
 from io import BytesIO
 
@@ -10,7 +11,7 @@ from api.main import app
 
 
 class FakeModel:
-    """Stand-in for PatchCore: returns a fixed score and remembers its input."""
+    """Stand-in for PatchCore: a fixed score, remembering the batch it got."""
 
     def __init__(self, score, image_size=256):
         self.score = score
