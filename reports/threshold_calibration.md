@@ -145,7 +145,7 @@ ayrı deneyler olarak karşılaştırılmalı (aşağıdaki bölüme bakın). Ku
 **Soru:** Aykırı değerlere dayanıklı bir kural (medyan + k·MAD) `pill` gibi kategorilerde
 eşiği düzeltip genel sonucu iyileştirir mi?
 
-**Protokol** (sonuçlara bakmadan önce [`scripts/compare_threshold_rules.py`](../scripts/compare_threshold_rules.py)
+**Protokol** (sonuçlara bakmadan önce [`scripts/modeling/compare_threshold_rules.py`](../scripts/modeling/compare_threshold_rules.py)
 içine yazıldı):
 
 - Adaylar: şu anki `max` kuralı ve `medyan + k · 1,4826 · MAD`, k ∈ {2, 3, 4, 5, 6}.
@@ -201,9 +201,9 @@ Bu karşılaştırma için kalibrasyon yeniden çalıştırıldı ve ayrılan pu
 çıktı. Test yarılarını, kuralları ve MLflow kaydını üretmek için:
 
 ```sh
-.venv/bin/python -m scripts.calibrate_thresholds --device mps
-.venv/bin/python -m scripts.plot_threshold_results          # test_scores.json
-.venv/bin/python -m scripts.compare_threshold_rules --write  # --write yalnızca kazanan max değilse yazar
+.venv/bin/python -m scripts.modeling.calibrate_thresholds --device mps
+.venv/bin/python -m scripts.reporting.plot_threshold_results          # test_scores.json
+.venv/bin/python -m scripts.modeling.compare_threshold_rules --write  # --write yalnızca kazanan max değilse yazar
 ```
 
 ## Sınırlar
@@ -218,7 +218,7 @@ Bu karşılaştırma için kalibrasyon yeniden çalıştırıldı ve ayrılan pu
 
 ## Servis
 
-[`scripts/calibrate_thresholds.py`](../scripts/calibrate_thresholds.py), bankaların
+[`scripts/modeling/calibrate_thresholds.py`](../scripts/modeling/calibrate_thresholds.py), bankaların
 yanına iki dosya yazar:
 
 - `thresholds.json`: kategori başına eşik ve kalibrasyon bilgisi. Servis bu dosyayı
@@ -228,22 +228,22 @@ yanına iki dosya yazar:
 
 Canlı servis için `thresholds.json`, bankalarla aynı Cloud Storage bucket'ına kondu.
 
-Kalibrasyon `bf1da8f` commit'i ve `scripts/calibrate_thresholds.py` ile 2026-10-04'te,
+Kalibrasyon `bf1da8f` commit'i ve `scripts/modeling/calibrate_thresholds.py` ile 2026-10-04'te,
 Apple MPS üzerinde yaklaşık 55 dakikada çalıştırıldı. `thresholds.json` SHA256:
 `bd872203f8ccf8ede2ed641f7d6712558b894017afcbdada4eda7413c1f6c4ac`. Yeniden üretmek için:
 
 ```sh
-.venv/bin/python -m scripts.calibrate_thresholds \
+.venv/bin/python -m scripts.modeling.calibrate_thresholds \
   --dataset-root data/mvtec-ad \
   --model-dir artifacts/border-exclusion/coreset-16384-n3-b2/patchcore \
   --holdout-fraction 0.2 --seed 42 --device mps
 ```
 
-Grafikler [`scripts/plot_threshold_results.py`](../scripts/plot_threshold_results.py)
+Grafikler [`scripts/reporting/plot_threshold_results.py`](../scripts/reporting/plot_threshold_results.py)
 ile üretildi. Script, test puanlarını ilk çalıştırmada hesaplayıp bankaların yanına
 `test_scores.json` olarak kaydeder ve `reports/figures/` altına açık ve koyu tema için
 SVG yazar:
 
 ```sh
-.venv/bin/python -m scripts.plot_threshold_results --device mps
+.venv/bin/python -m scripts.reporting.plot_threshold_results --device mps
 ```

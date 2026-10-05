@@ -61,38 +61,38 @@ There is no loss function and no gradient training: everything the model "learns
 ## Repository layout
 
 ```
-anomaly/
-  patchcore.py            PatchCore model: feature extraction, bank selection, scoring, save/load
-  mvtec_dataset.py        PyTorch dataset for the FiftyOne export of MVTec AD
-  metrics.py              Exact image and pixel AUROC
-  drift.py                PSI drift checks with calibrated cut-offs
-  drift_job.py            Scheduled drift check for Cloud Run Jobs (reads the Logging API)
-  run_pipeline.py         Prefect flow: fit, save, evaluate, write a run manifest and log to MLflow
-api/main.py               FastAPI app and startup (python -m api.main)
-api/config.py             Environment settings and upload limits
-api/routes.py             HTTP routes and error mapping
-api/schemas.py            Public response contracts
-api/services.py           Model loading, image decoding and predictions
-Dockerfile                CPU-only image for the service
-requirements-api.in       Serving dependencies; compiled to the hashed requirements-api.lock
-scripts/
-  build_patchcore.py      Build memory banks without evaluating
-  calibrate_thresholds.py Pick each category's is_anomaly threshold from held-out normal images
-  compare_threshold_rules.py  Compare threshold rules on a validation half of the test set
-  compare_resolutions.py  Pick a category's input size on a validation half of its test set
-  plot_threshold_results.py   Draw the threshold figures in reports/figures/
-  backfill_mlflow.py      Record runs made before MLflow tracking
-  register_model.py       Register a run's banks as a new patchcore-mvtec version
-  deploy_model.py         Point Cloud Run at the version behind an MLflow alias
-  build_drift_reference.py  Reference scores, brightness and contrast for drift checks
-  check_drift.py          Compare recent live predictions with the reference
-  simulate_drift.py       Send drift scenarios (dark, blur, defect wave) to the live service
-  visualize_anomalies.py  Render example images with masks and anomaly overlays
-  dataset_summary.py      Count images per category, split and defect
-  validate_dataset.py     Decode every image and mask and check their sizes
-tests/                    Unit and API tests (no dataset or model weights needed)
-reports/                  Experiment write-ups
+anomaly/                      Core package: everything the model and the pipeline need
+  data/mvtec_dataset.py       PyTorch dataset for the FiftyOne export of MVTec AD
+  model/patchcore.py          PatchCore: feature extraction, bank selection, scoring, save/load
+  model/thresholds.py         Read the per-category is_anomaly thresholds
+  evaluation/metrics.py       Exact image and pixel AUROC
+  evaluation/scoring.py       Score a dataset with a model and count decisions
+  evaluation/splits.py        Seeded splits of training and test images
+  pipeline/run_pipeline.py    Prefect flow: fit, save, evaluate, write a manifest, log to MLflow
+  monitoring/drift.py         PSI drift checks with calibrated cut-offs
+  monitoring/drift_job.py     Daily drift check for Cloud Run Jobs (reads the Logging API)
+  utils.py                    write_json and default_device
+api/                          FastAPI service, started with python -m api.main
+  main.py                     App entry point and startup
+  config.py                   Environment settings and upload limits
+  middleware.py               Request size limit
+  routes/                     health.py, models.py, predictions.py: HTTP only
+  schemas/                    Response contracts
+  services/                   model_loading.py, image_decoding.py, prediction.py
+scripts/                      Command line tools, grouped by what they work on
+  cloud.py                    Run gcloud commands
+  data/                       validate_dataset, dataset_summary
+  modeling/                   build_patchcore, calibrate_thresholds, compare_threshold_rules,
+                              compare_resolutions
+  registry/                   register_model, deploy_model, backfill_mlflow
+  monitoring/                 build_drift_reference, check_drift, simulate_drift
+  reporting/                  plot_threshold_results, visualize_anomalies
+tests/                        Mirrors the packages: api/, anomaly/, scripts/; support/ holds shared fakes
+reports/                      Experiment write-ups
+Dockerfile, requirements-*.in / .lock, .flake8, .env.example
 ```
+
+Each layer has one job. Routes only deal with HTTP and delegate to services; services do the work; `anomaly` knows nothing about HTTP; scripts are thin command line wrappers that call `anomaly` and never import each other (shared code lives in `anomaly/` or `scripts/cloud.py`). The serving image copies only `anomaly/` and `api/`.
 
 ## Setup
 
@@ -115,8 +115,8 @@ uv pip install huggingface_hub
 Check the download:
 
 ```sh
-.venv/bin/python -m scripts.validate_dataset
-.venv/bin/python -m scripts.dataset_summary
+.venv/bin/python -m scripts.data.validate_dataset
+.venv/bin/python -m scripts.data.dataset_summary
 ```
 
 MVTec AD is licensed under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/), which allows non-commercial use only. The dataset is not stored in this repository.
@@ -126,7 +126,7 @@ MVTec AD is licensed under [CC BY-NC-SA 4.0](https://creativecommons.org/license
 Run the best configuration on every category:
 
 ```sh
-.venv/bin/python -m anomaly.run_pipeline \
+.venv/bin/python -m anomaly.pipeline.run_pipeline \
   --dataset-root data/mvtec-ad --output-root artifacts/best \
   --device mps --max-patches 16384 --selection coreset \
   --neighborhood 3 --border 2
@@ -143,7 +143,7 @@ The pipeline writes these files to `--output-root`:
 Render anomaly overlays from the saved banks into `<output-root>/visualizations/`:
 
 ```sh
-.venv/bin/python -m scripts.visualize_anomalies \
+.venv/bin/python -m scripts.reporting.visualize_anomalies \
   --dataset-root data/mvtec-ad --output-root artifacts/best --device mps
 ```
 
@@ -226,7 +226,7 @@ The service has 2 GiB of memory and 1 vCPU. It scales between 0 and 1 instances,
 
 ## Experiment tracking and model registry
 
-Every `anomaly.run_pipeline` run is logged to MLflow in the `patchcore-mvtec` experiment: settings as params, image and pixel AUROC per category and their means as metrics, git commit and dataset hash as tags, and `metrics.json` and `manifest.json` as artifacts. `--tracking-uri` defaults to a local `sqlite:///mlflow.db`. Runs made before tracking existed were added with `scripts/backfill_mlflow.py`, so every report table can be compared in one place (filter on `tags.num_categories = "15"` to compare full runs). The threshold rule comparison is logged in a separate `threshold-rules` experiment.
+Every `anomaly.pipeline.run_pipeline` run is logged to MLflow in the `patchcore-mvtec` experiment: settings as params, image and pixel AUROC per category and their means as metrics, git commit and dataset hash as tags, and `metrics.json` and `manifest.json` as artifacts. `--tracking-uri` defaults to a local `sqlite:///mlflow.db`. Runs made before tracking existed were added with `scripts/registry/backfill_mlflow.py`, so every report table can be compared in one place (filter on `tags.num_categories = "15"` to compare full runs). The threshold rule comparison is logged in a separate `threshold-rules` experiment.
 
 ```sh
 .venv/bin/mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5001   # macOS uses port 5000 for AirPlay
@@ -235,8 +235,8 @@ Every `anomaly.run_pipeline` run is logged to MLflow in the `patchcore-mvtec` ex
 The deployed banks are registered as the `patchcore-mvtec` model. Each version points to the run it came from, and the `production` alias marks the version that should be live:
 
 ```sh
-.venv/bin/python -m scripts.register_model    # log a run's banks + thresholds.json, add a version, set @production
-.venv/bin/python -m scripts.deploy_model      # upload @production to gs://<bucket>/patchcore-mvtec/v<N>/ if needed,
+.venv/bin/python -m scripts.registry.register_model    # log a run's banks + thresholds.json, add a version, set @production
+.venv/bin/python -m scripts.registry.deploy_model      # upload @production to gs://<bucket>/patchcore-mvtec/v<N>/ if needed,
                                               # then set MODEL_DIR and MODEL_VERSION on the Cloud Run service
 ```
 
@@ -252,16 +252,16 @@ Each bank stores the input size it was fit at, and the service resizes each cate
 
 Every prediction is logged as one JSON line (category, model version, score, threshold, `is_anomaly`, latency, image size, brightness and contrast; never the image or filename). Cloud Run sends it to Cloud Logging.
 
-`scripts/check_drift.py` takes each category's last 50 predictions for the deployed model version and compares them with `drift_reference.json`: the held-out normal scores, and the brightness and contrast of the normal training images. Only the model's behavior raises an alarm: the score distribution (PSI) and the share of flagged predictions (above three times the expected false alarm rate). Brightness and contrast are shown as the percentage change of their mean, for a person to read: a failing lamp shows up as roughly −40% brightness. They don't raise alarms or drive an automatic diagnosis, because MVTec's test images already differ from the training images by up to 30% in contrast in some categories, more than a simulated out-of-focus camera (6%). A run is logged to the MLflow `monitoring` experiment, and the script exits with status 1 on an alarm.
+`scripts/monitoring/check_drift.py` takes each category's last 50 predictions for the deployed model version and compares them with `drift_reference.json`: the held-out normal scores, and the brightness and contrast of the normal training images. Only the model's behavior raises an alarm: the score distribution (PSI) and the share of flagged predictions (above three times the expected false alarm rate). Brightness and contrast are shown as the percentage change of their mean, for a person to read: a failing lamp shows up as roughly −40% brightness. They don't raise alarms or drive an automatic diagnosis, because MVTec's test images already differ from the training images by up to 30% in contrast in some categories, more than a simulated out-of-focus camera (6%). A run is logged to the MLflow `monitoring` experiment, and the script exits with status 1 on an alarm.
 
 The textbook PSI cut-offs (0.1 warning, 0.25 alarm) assume thousands of samples. On 50 predictions with no drift at all they would warn 86% and alarm 28% of the time. So each cut-off is measured instead: `build_drift_reference.py` resamples windows from the reference thousands of times and puts the warning and alarm cut-offs where no-drift windows land only 5% and 1% of the time. Bin shares use Laplace smoothing, because with ~50 reference values a single empty bin otherwise dominates PSI.
 
 ```sh
-.venv/bin/python -m scripts.build_drift_reference   # once per deployed model version
-.venv/bin/python -m scripts.check_drift
+.venv/bin/python -m scripts.monitoring.build_drift_reference   # once per deployed model version
+.venv/bin/python -m scripts.monitoring.check_drift
 ```
 
-`anomaly/drift_job.py` runs the same check as the `drift-check` Cloud Run Job, from the serving image, every day at 08:00 Istanbul time (Cloud Scheduler). It reads the prediction logs through the Cloud Logging API with the job's own credentials and writes one `drift_check` log line, with severity `ERROR` when a category is in alarm. `drift_reference.json` lives in the model's version folder in the bucket next to the banks. `deploy_model.py` uploads it with new versions and points the job at the new version's reference and the service's current image.
+`anomaly/monitoring/drift_job.py` runs the same check as the `drift-check` Cloud Run Job, from the serving image, every day at 08:00 Istanbul time (Cloud Scheduler). It reads the prediction logs through the Cloud Logging API with the job's own credentials and writes one `drift_check` log line, with severity `ERROR` when a category is in alarm. `drift_reference.json` lives in the model's version folder in the bucket next to the banks. `deploy_model.py` uploads it with new versions and points the job at the new version's reference and the service's current image.
 
 Cloud Monitoring emails on five alert policies:
 
@@ -278,7 +278,7 @@ A simulation against the live service ([`drift_simulation.md`](reports/drift_sim
 ## Tests
 
 ```sh
-.venv/bin/python -m unittest discover -s tests
+.venv/bin/python -m unittest discover -t . -s tests
 ```
 
 The tests mock the backbone, so they need neither the dataset nor the pretrained weights. The API tests in `tests/test_service.py` replace the banks with fake models and skip the startup that loads them.
