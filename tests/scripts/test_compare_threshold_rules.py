@@ -39,7 +39,7 @@ class RuleTests(unittest.TestCase):
 
 class EndToEndTests(unittest.TestCase):
     def test_logs_every_candidate_and_writes_winner(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
             root = Path(directory)
             model_dir = root / "banks"
             model_dir.mkdir()
