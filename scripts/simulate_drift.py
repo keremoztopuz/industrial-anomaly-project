@@ -12,11 +12,12 @@ check_drift: python -m scripts.simulate_drift --scenario dark
 """
 
 import argparse
-import random
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import urlparse
 
 import httpx
+import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 
 from anomaly.mvtec_dataset import MVTecDataset
@@ -28,20 +29,31 @@ BLUR_RADIUS = 4
 
 def pick_samples(dataset, scenario, count, seed):
     """Choose the test samples for a scenario, in a seeded random order."""
-    rng = random.Random(seed)
+    rng = np.random.default_rng(seed)
     good = [s for s in dataset.samples if s["defect"]["label"] == "good"]
     defective = [s for s in dataset.samples if s["defect"]["label"] != "good"]
-    rng.shuffle(good)
-    rng.shuffle(defective)
+    good = [good[i] for i in rng.permutation(len(good))]
+    defective = [defective[i] for i in rng.permutation(len(defective))]
     if scenario == "defects":
         defect_count = round(count * 0.8)
         chosen = defective[:defect_count] + good[:count - defect_count]
-        rng.shuffle(chosen)
+        chosen = [chosen[i] for i in rng.permutation(len(chosen))]
     else:
         chosen = good[:count]
     if len(chosen) < count:
         raise ValueError(f"only {len(chosen)} suitable test images for scenario {scenario}")
     return chosen
+
+
+def check_url(url):
+    """Allow only the Cloud Run service or a local one, so the script can't be aimed elsewhere."""
+    parsed = urlparse(url)
+    host = parsed.hostname or ""
+    if parsed.scheme == "https" and host.endswith(".run.app"):
+        return url
+    if parsed.scheme in ("http", "https") and host in ("127.0.0.1", "localhost"):
+        return url
+    raise ValueError(f"--url must be a Cloud Run (*.run.app) or local address, got {url}")
 
 
 def apply_scenario(image, scenario):
@@ -67,11 +79,15 @@ def main():
     parser.add_argument("--dataset-root", type=Path, default=Path("data/mvtec-ad"))
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
+    try:
+        base_url = check_url(args.url)
+    except ValueError as error:
+        parser.error(str(error))
 
     dataset = MVTecDataset(args.dataset_root, args.category, "test")
     samples = pick_samples(dataset, args.scenario, args.count, args.seed)
     flagged = 0
-    with httpx.Client(base_url=args.url, timeout=180) as client:
+    with httpx.Client(base_url=base_url, timeout=180) as client:
         for index, sample in enumerate(samples, start=1):
             with Image.open(dataset.root / sample["filepath"]) as source:
                 image = apply_scenario(source.convert("RGB"), args.scenario)

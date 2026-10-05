@@ -208,7 +208,7 @@ Each version gets its own folder in the bucket and is never overwritten. To roll
 
 Every prediction is logged as one JSON line (category, model version, score, threshold, `is_anomaly`, latency, image size, brightness and contrast; never the image or filename). Cloud Run sends it to Cloud Logging.
 
-`scripts/check_drift.py` takes each category's last 50 predictions for the deployed model version and compares them with `drift_reference.json`: the held-out normal scores, and the brightness and contrast of the normal training images. Only the model's behavior raises an alarm: the score distribution (PSI) and the share of flagged predictions (above three times the expected false alarm rate). Brightness and contrast are diagnostics that explain an alarm (camera or lighting change versus a real wave of defects), because MVTec's test images differ from the training images by about 1.5 grey levels, which is harmless to the model but enough for PSI to fire. A run is logged to the MLflow `monitoring` experiment, and the script exits with status 1 on an alarm.
+`scripts/check_drift.py` takes each category's last 50 predictions for the deployed model version and compares them with `drift_reference.json`: the held-out normal scores, and the brightness and contrast of the normal training images. Only the model's behavior raises an alarm: the score distribution (PSI) and the share of flagged predictions (above three times the expected false alarm rate). Brightness and contrast are shown as the percentage change of their mean, for a person to read: a failing lamp shows up as roughly −40% brightness. They don't raise alarms or drive an automatic diagnosis, because MVTec's test images already differ from the training images by up to 30% in contrast in some categories, more than a simulated out-of-focus camera (6%). A run is logged to the MLflow `monitoring` experiment, and the script exits with status 1 on an alarm.
 
 The textbook PSI cut-offs (0.1 warning, 0.25 alarm) assume thousands of samples. On 50 predictions with no drift at all they would warn 86% and alarm 28% of the time. So each cut-off is measured instead: `build_drift_reference.py` resamples windows from the reference thousands of times and puts the warning and alarm cut-offs where no-drift windows land only 5% and 1% of the time. Bin shares use Laplace smoothing, because with ~50 reference values a single empty bin otherwise dominates PSI.
 
@@ -217,7 +217,7 @@ The textbook PSI cut-offs (0.1 warning, 0.25 alarm) assume thousands of samples.
 .venv/bin/python -m scripts.check_drift
 ```
 
-A simulation against the live service ([`drift_simulation.md`](reports/drift_simulation.md)) checked four scenarios on `cable`: a normal day only warns, while a failing lamp, an out-of-focus camera and a defect wave all raise an alarm. Each alarm comes with the right diagnosis.
+A simulation against the live service ([`drift_simulation.md`](reports/drift_simulation.md)) checked four scenarios on `cable`: a normal day only warns, while a failing lamp, an out-of-focus camera and a defect wave all raise an alarm.
 
 ## Tests
 

@@ -13,9 +13,10 @@ Decisions (2026-10-05):
 - Each category is checked on its last 50 predictions; fewer means "insufficient data".
 - The alarm rate raises an alarm above 3 times the expected false positive rate.
 - Only the model's behavior (score PSI and alarm rate) decides the status. Brightness and
-  contrast are diagnostics: MVTec's test images differ from the training images by about
-  1.5 grey levels, invisible and harmless to the model, yet enough for PSI to alarm in 13
-  of 15 categories. They explain an alarm instead of raising one.
+  contrast are reported as the relative change of their mean, for a person to read. MVTec's
+  test images already differ from the training images by up to 30% in contrast in some
+  categories (leather), more than a simulated out-of-focus camera (6%), so no cut-off on
+  them separates normal days from camera faults, and an automatic diagnosis was dropped.
 """
 
 import numpy as np
@@ -75,43 +76,33 @@ def calibrate_psi_thresholds(reference, window=WINDOW, bins=BINS, trials=2000, s
     return float(np.quantile(values, 0.95)), float(np.quantile(values, 0.99))
 
 
-SIGNALS = ("anomaly_score", "brightness", "contrast")
-DIAGNOSTIC_SIGNALS = ("brightness", "contrast")
+INPUT_SIGNALS = ("brightness", "contrast")
 SEVERITY = {"insufficient_data": 0, "stable": 1, "warning": 2, "alarm": 3}
 
 
 def check_category(records, reference, window=WINDOW):
     """Compare a category's newest `window` prediction records with its reference.
 
-    `records` are prediction log dicts, newest first. `reference` maps each signal to
-    {"reference": [...], "warn": float, "alarm": float}. Returns one result dict.
+    `records` are prediction log dicts, newest first. `reference` maps "anomaly_score" to
+    {"reference": [...], "warn": float, "alarm": float} and each input signal to at least
+    {"reference": [...]}. Returns one result dict.
     """
     recent = records[:window]
     if len(recent) < window:
         return {"status": "insufficient_data", "predictions": len(recent)}
-    result = {"predictions": len(recent)}
-    for signal in SIGNALS:
-        value = psi(reference[signal]["reference"], [record[signal] for record in recent])
-        result[f"psi_{signal}"] = value
-        result[f"{signal}_status"] = psi_status(
-            value, reference[signal]["warn"], reference[signal]["alarm"])
+    score = reference["anomaly_score"]
+    result = {"predictions": len(recent),
+              "psi_anomaly_score": psi(score["reference"],
+                                       [record["anomaly_score"] for record in recent])}
+    result["anomaly_score_status"] = psi_status(
+        result["psi_anomaly_score"], score["warn"], score["alarm"])
     flags = [bool(record["is_anomaly"]) for record in recent]
     result["alarm_rate"] = sum(flags) / len(flags)
     result["alarm_rate_status"] = alarm_rate_status(flags)
     result["status"] = max((result["anomaly_score_status"], result["alarm_rate_status"]),
                            key=SEVERITY.get)
-    result["diagnosis"] = diagnose(result)
+    for signal in INPUT_SIGNALS:
+        baseline = float(np.mean(reference[signal]["reference"]))
+        result[f"{signal}_change"] = (
+            float(np.mean([record[signal] for record in recent])) - baseline) / baseline
     return result
-
-
-def diagnose(result):
-    """Say what most likely changed, using the diagnostic signals."""
-    if result["status"] == "stable":
-        return "no change in model behavior"
-    inputs_changed = [signal for signal in DIAGNOSTIC_SIGNALS
-                      if result[f"{signal}_status"] == "alarm"]
-    if inputs_changed:
-        return f"input images changed ({', '.join(inputs_changed)}): check the camera and lighting"
-    if result["alarm_rate_status"] == "alarm":
-        return "more parts flagged at unchanged lighting: possibly a real wave of defects"
-    return "scores shifted without a clear input change"

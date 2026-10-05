@@ -30,8 +30,22 @@ class PickSamplesTests(unittest.TestCase):
         self.assertEqual(first, second)
 
     def test_too_few_images_is_an_error(self):
+        dataset = dataset_with(20, 40)
         with self.assertRaises(ValueError):
-            simulate_drift.pick_samples(dataset_with(20, 40), "normal", 50, seed=42)
+            simulate_drift.pick_samples(dataset, "normal", 50, seed=42)
+
+
+class CheckUrlTests(unittest.TestCase):
+    def test_allows_cloud_run_and_local(self):
+        for url in ("https://anomaly-api-sw4p2ayosa-ew.a.run.app", "http://127.0.0.1:8000",
+                    "http://localhost:8000"):
+            self.assertEqual(simulate_drift.check_url(url), url)
+
+    def test_rejects_other_hosts(self):
+        for url in ("https://example.com", "http://anomaly.run.app", "https://run.app.evil.com",
+                    "file:///etc/passwd"):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                simulate_drift.check_url(url)
 
 
 class ApplyScenarioTests(unittest.TestCase):

@@ -16,7 +16,7 @@ from pathlib import Path
 
 from mlflow.tracking import MlflowClient
 
-from anomaly.drift import SEVERITY, SIGNALS, check_category
+from anomaly.drift import INPUT_SIGNALS, SEVERITY, check_category
 from scripts.deploy_model import gcloud
 
 EXPERIMENT = "monitoring"
@@ -55,9 +55,7 @@ def log_to_mlflow(tracking_uri, reference, results, fetched, label=None):
         client.log_param(run_id, key, value)
     for category, result in results.items():
         client.set_tag(run_id, f"status/{category}", result["status"])
-        if "diagnosis" in result:
-            client.set_tag(run_id, f"diagnosis/{category}", result["diagnosis"])
-        for key in [f"psi_{signal}" for signal in SIGNALS] + ["alarm_rate"]:
+        for key in ["psi_anomaly_score", "alarm_rate"] + [f"{s}_change" for s in INPUT_SIGNALS]:
             if key in result:
                 client.log_metric(run_id, f"{key}/{category}", result[key])
     client.set_terminated(run_id)
@@ -87,11 +85,10 @@ def main():
     results = check_all(predictions, reference)
     for category, result in results.items():
         details = "" if result["status"] == "insufficient_data" else (
-            f"  score {result['anomaly_score_status']}, brightness {result['brightness_status']}, "
-            f"contrast {result['contrast_status']}, alarm rate {result['alarm_rate']:.0%}")
+            f"  score {result['anomaly_score_status']}, alarm rate {result['alarm_rate']:.0%}"
+            f" | brightness {result['brightness_change']:+.1%}, "
+            f"contrast {result['contrast_change']:+.1%}")
         print(f"{category:11} {result['status']:17} {result['predictions']:3d} predictions{details}")
-        if result.get("diagnosis") and result["status"] != "stable":
-            print(f"{'':11} -> {result['diagnosis']}")
     overall = max((result["status"] for result in results.values()), key=SEVERITY.get)
     if not args.no_mlflow:
         log_to_mlflow(args.tracking_uri, reference, results, len(predictions), args.label)

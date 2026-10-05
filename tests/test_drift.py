@@ -22,7 +22,8 @@ def reference_for(values):
     return {"reference": values, "warn": warn, "alarm": alarm}
 
 
-REFERENCE = {signal: reference_for(NORMAL) for signal in drift.SIGNALS}
+REFERENCE = {"anomaly_score": reference_for(NORMAL),
+             "brightness": {"reference": NORMAL}, "contrast": {"reference": NORMAL}}
 
 
 def records(n, shift=0.0, flagged=0, category="bottle", brightness_shift=0.0):
@@ -90,19 +91,12 @@ class CheckCategoryTests(unittest.TestCase):
         result = drift.check_category(records(50, flagged=20), REFERENCE)
         self.assertEqual(result["alarm_rate_status"], "alarm")
         self.assertAlmostEqual(result["alarm_rate"], 0.4)
-        self.assertIn("wave of defects", result["diagnosis"])
 
-    def test_input_change_alone_is_only_a_diagnostic(self):
+    def test_input_change_alone_does_not_change_status(self):
         result = drift.check_category(records(50, brightness_shift=3), REFERENCE)
-        self.assertEqual(result["brightness_status"], "alarm")
         self.assertEqual(result["status"], "stable")
-        self.assertEqual(result["diagnosis"], "no change in model behavior")
-
-    def test_score_alarm_with_input_change_points_at_camera(self):
-        result = drift.check_category(records(50, shift=2, brightness_shift=3), REFERENCE)
-        self.assertEqual(result["status"], "alarm")
-        self.assertIn("brightness", result["diagnosis"])
-        self.assertIn("camera", result["diagnosis"])
+        self.assertAlmostEqual(result["brightness_change"], 0.3, delta=0.05)
+        self.assertAlmostEqual(result["contrast_change"], 0.0, delta=0.05)
 
 
 class CheckDriftScriptTests(unittest.TestCase):
@@ -139,7 +133,7 @@ class CheckDriftScriptTests(unittest.TestCase):
             self.assertEqual(run.data.tags["status/bottle"], "alarm")
             self.assertEqual(run.data.tags["status/pill"], "insufficient_data")
             self.assertIn("psi_anomaly_score/bottle", run.data.metrics)
-            self.assertIn("diagnosis/bottle", run.data.tags)
+            self.assertIn("brightness_change/bottle", run.data.metrics)
 
 
 class ReferencePathTests(unittest.TestCase):
