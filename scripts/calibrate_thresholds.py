@@ -133,7 +133,8 @@ def main():
 
     settings = {"method": "max held-out normal score", "holdout_fraction": args.holdout_fraction,
                 "seed": args.seed}
-    for name, results in (("thresholds.json", thresholds), ("threshold_evaluation.json", evaluation)):
+    for name, results in (("thresholds.json", thresholds),
+                          ("threshold_evaluation.json", evaluation)):
         path = args.model_dir / name
         write_json(path, merge_categories(path, settings, results))
 

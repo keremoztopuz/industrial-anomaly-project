@@ -24,5 +24,5 @@ ENV PYTHONPATH=/app \
     MODEL_DIR=/models
 
 EXPOSE 8000
-CMD ["python", "api/service.py"]
+CMD ["python", "-m", "api.main"]
 

@@ -92,7 +92,8 @@ def luminance(hex_color):
 def readable_ink(fill):
     """Pick near-black or white text, whichever has more contrast on `fill`."""
     lum = luminance(fill)
-    return "#0b0b0b" if (lum + 0.05) / (luminance("#0b0b0b") + 0.05) > 1.05 / (lum + 0.05) else "#ffffff"
+    return "#0b0b0b" if (lum + 0.05) / (luminance("#0b0b0b") +
+                                        0.05) > 1.05 / (lum + 0.05) else "#ffffff"
 
 
 def legend(svg, x, y, items):
@@ -128,9 +129,12 @@ def draw_confusion(totals, theme, path):
             x, y = left + c * cell, top + r * cell
             svg.rect(x + 1, y + 1, cell - 2, cell - 2, fill, 4)
             svg.parts.append(f'<text x="{x + cell / 2:.1f}" y="{y + cell / 2:.1f}" font-size="22" '
-                             f'font-weight="600" fill="{ink}" text-anchor="middle">{totals[key]:,}</text>')
-            svg.parts.append(f'<text x="{x + cell / 2:.1f}" y="{y + cell / 2 + 22:.1f}" font-size="12" '
-                             f'fill="{ink}" text-anchor="middle">{share:.1%} of {label.lower()}</text>')
+                             f'font-weight="600" fill="{ink}" text-anchor="middle">'
+                             f'{totals[key]:,}</text>')
+            svg.parts.append(f'<text x="{x + cell / 2:.1f}" '
+                             f'y="{y + cell / 2 + 22:.1f}" font-size="12" '
+                             f'fill="{ink}" text-anchor="middle">'
+                             f'{share:.1%} of {label.lower()}</text>')
     svg.save(path, "Confusion matrix over all test images")
 
 
@@ -139,8 +143,9 @@ def draw_rates(per_category, theme, path):
     row, top, label_w, panel_w, gap = 26, 96, 110, 300, 60
     svg = Svg(label_w + 2 * panel_w + gap + 70, top + row * len(order) + 40, theme)
     svg.text(24, 32, "Recall and false alarms per category", 16, weight=600)
-    svg.text(24, 52, "Share of test images on the wrong or right side of each category's threshold",
-             12, "ink2")
+    svg.text(
+        24, 52, "Share of test images on the wrong or right side of each category's threshold",
+        12, "ink2")
     panels = [("Defects caught (recall)", "recall", "defect"),
               ("Normal parts flagged (false positive rate)", "false_positive_rate", "normal")]
     for p, (title, key, color) in enumerate(panels):
@@ -169,7 +174,8 @@ def draw_distributions(scores, thresholds, per_category, theme, path):
     svg.text(24, 32, "Test score distributions and thresholds", 16, weight=600)
     svg.text(24, 52, "Each dot is one test image; dots right of the dashed line are flagged. "
              "Scales differ per category.", 12, "ink2")
-    legend(svg, 24, 76, [("Normal", "normal"), ("Defective", "defect"), ("Threshold", "threshold")])
+    legend(svg, 24, 76, [("Normal", "normal"),
+           ("Defective", "defect"), ("Threshold", "threshold")])
     for index, category in enumerate(categories):
         x0 = 24 + (index % cols) * (panel_w + gap_x)
         y0 = top + (index // cols) * (panel_h + gap_y)
@@ -185,7 +191,9 @@ def draw_distributions(scores, thresholds, per_category, theme, path):
         result = per_category[category]
         svg.text(x0, y0 + 14, category, 13, weight=600)
         svg.text(x0 + panel_w, y0 + 14,
-                 f"recall {result['recall']:.0%} · false alarms {result['false_positive_rate']:.0%}",
+                 f"recall {
+                     result['recall']:.0%} · false alarms {
+                     result['false_positive_rate']:.0%}",
                  11, "ink2", "end")
         bands = {0: (y0 + 30, "normal"), 1: (y0 + 72, "defect")}
         for label, (band_top, _) in bands.items():

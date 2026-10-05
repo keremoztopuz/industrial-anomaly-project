@@ -68,7 +68,11 @@ anomaly/
   drift.py                PSI drift checks with calibrated cut-offs
   drift_job.py            Scheduled drift check for Cloud Run Jobs (reads the Logging API)
   run_pipeline.py         Prefect flow: fit, save, evaluate, write a run manifest and log to MLflow
-api/service.py            FastAPI service that serves the saved banks
+api/main.py               FastAPI app and startup (python -m api.main)
+api/config.py             Environment settings and upload limits
+api/routes.py             HTTP routes and error mapping
+api/schemas.py            Public response contracts
+api/services.py           Model loading, image decoding and predictions
 Dockerfile                CPU-only image for the service
 requirements-api.in       Serving dependencies; compiled to the hashed requirements-api.lock
 scripts/
@@ -159,7 +163,7 @@ The defaults reproduce the original baseline. Banks saved before an option exist
 
 ## Serving API
 
-`api/service.py` loads every `<category>.pt` bank from `MODEL_DIR` at startup and shares one backbone between them (about 1 GB of RAM for all 15 categories).
+`api/main.py` loads every `<category>.pt` bank from `MODEL_DIR` at startup and shares one backbone between them (about 1 GB of RAM for all 15 categories).
 
 | Endpoint | Returns |
 | --- | --- |
@@ -168,7 +172,19 @@ The defaults reproduce the original baseline. Banks saved before an option exist
 | `GET /model` | Model name, registry version, model directory and number of loaded categories |
 | `POST /predict/{category}` | Image score, threshold and `is_anomaly` for an uploaded image (`upload_file` form field) |
 
-Unknown categories return 404 and files that are not readable images return 400.
+Only PNG and JPEG are accepted (including grayscale PNG/JPEG and RGBA PNG). Unknown categories return 404, invalid or unsupported images return 400, exceeded byte/pixel limits return 413, and a missing upload returns 422. `/docs` and `/openapi.json` describe the typed responses, including nullable `threshold` and `is_anomaly` fields. Existing URLs and JSON field names are unchanged; `/model`'s `categories` remains a count.
+
+Startup fails if `MODEL_DIR` contains no category banks. `/health` reports HTTP process liveness after startup; it does not probe external services. Missing thresholds preserve the null decision behavior; a present but malformed file or a nonnumeric, negative, boolean or non-finite threshold prevents startup.
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `MAX_UPLOAD_BYTES` | 10485760 (10 MiB) | Maximum encoded image size |
+| `MAX_IMAGE_PIXELS` | 16000000 | Maximum width × height before RGB decoding |
+| `MAX_REQUEST_BYTES` | `MAX_UPLOAD_BYTES + 1048576` | Complete request body, including multipart overhead |
+
+All limits must be positive. The ASGI middleware bounds the whole body **before multipart parsing**, even without `Content-Length`. The image decoder separately reads at most `MAX_UPLOAD_BYTES + 1` bytes. The middleware buffers one bounded request body in RAM; account for concurrent requests when setting limits.
+
+`.env.example` contains sample settings without secrets. The application reads `os.environ` and **does not automatically load `.env`**. Export variables in your shell or pass an explicit `--env-file .env` to Docker. `.env` and `.env.*` are excluded from Git and Docker context; `.env.example` is intentionally allowed.
 
 ```sh
 curl -X POST -F "upload_file=@bottle.png" \
@@ -182,7 +198,7 @@ curl -X POST -F "upload_file=@bottle.png" \
 Run it locally against saved banks:
 
 ```sh
-PYTHONPATH=. MODEL_DIR=artifacts/best/patchcore .venv/bin/python api/service.py
+MODEL_DIR=artifacts/best/patchcore .venv/bin/python -m api.main
 ```
 
 ### Docker
@@ -224,7 +240,11 @@ The deployed banks are registered as the `patchcore-mvtec` model. Each version p
                                               # then set MODEL_DIR and MODEL_VERSION on the Cloud Run service
 ```
 
-Each version gets its own folder in the bucket and is never overwritten. To roll back, move the `production` alias to an older version and run `deploy_model.py` again: the files are already there, so only the service's environment changes. `GET /model` shows which version is live.
+Each registration writes to a fresh `model/<uuid>` MLflow artifact directory, including registrations against the same run. Existing registry sources are not rewritten. Deployment resolves the alias once, downloads `models:/patchcore-mvtec/<numeric-version>`, and checks the local bank list and calibration coverage. It compares the remote file names, byte sizes and GCS MD5 hashes with that bundle before updating Cloud Run. An empty successful listing allows a new upload with a create-only generation precondition; listing errors, incomplete existing versions, extra files and mismatched hashes stop deployment. Incomplete versions are not silently repaired or overwritten.
+
+With the default `--drift-job drift-check`, the bundle must include `drift_reference.json` with the same numeric `model_version`, matching categories and a positive window. Prepare the reference for the intended registry version **before registration**; do not modify a registered bundle. Use `--drift-job ''` to deploy without updating monitoring. To roll back, move the alias and deploy again; the older bundle must pass the same checks. `GET /model` shows which version is live.
+
+The service and drift job are separate Cloud Run updates, not a transaction. If a later cloud command fails, inspect both revisions before retrying. The script checks integrity but does not run a full inference on every bank or enforce bucket IAM immutability. No live deployment is performed by the tests.
 
 Each bank stores the input size it was fit at, and the service resizes each category's images to its own bank's size. **Version 2**, live now, is version 1 with `pill` refit at 320 × 320, chosen on a validation half of the pill test set. Pill image AUROC on the final half went from 0.953 to 0.963, and pill recall at the deployed threshold from 49% to 65% with no false alarms. A rollback drill took 97 s to promote v2 (including the upload), 49 s to roll back to v1 and 70 s to promote v2 again ([`pill_resolution.md`](reports/pill_resolution.md)).
 
@@ -278,4 +298,23 @@ The tests mock the backbone, so they need neither the dataset nor the pretrained
 - **Drift reference from the line itself.** The drift reference comes from training images, which miss normal day-to-day lighting variation ([`drift_simulation.md`](reports/drift_simulation.md)). A reference built from the first weeks of real traffic would allow alarms on brightness and contrast and an automatic camera-versus-defect diagnosis.
 - **Retraining loop.** A drift alarm currently ends with an email. The next step is a pipeline that refits the affected category on recent normal images, compares it with the live version under the same protocol, and registers it for review.
 - **Per-category tuning.** Only `pill` was tried at a higher resolution. Other weak categories (`screw`, `capsule`, `toothbrush`) could get the same comparison, and threshold calibration could use k-fold held-out scores instead of one 20% split.
-- **API hardening.** The demo endpoint is public with one instance and no authentication. A production service would add an API key or IAM authentication and request limits.
+- **API hardening.** The demo endpoint is public with one instance and no authentication. A production service would add an API key or IAM authentication and request rate limits.
+
+## Development checks
+
+Use Python 3.12 and run commands from the repository root. `python -m pytest tests` needs no test-specific `sys.path` changes. CI lives in `.github/workflows/ci.yml`, uses `contents: read`, and installs the hash-locked Linux CPU dependencies before testing, linting and auditing.
+
+```sh
+.venv/bin/python -m pytest tests
+.venv/bin/python -m flake8 anomaly api scripts tests
+uv pip check
+.venv/bin/python -m pip_audit --no-deps --disable-pip -r requirements-api.lock
+.venv/bin/python -m pip_audit --no-deps --disable-pip -r requirements-ci.lock
+.venv/bin/python -m pip_audit --no-deps --disable-pip -r requirements.txt
+```
+
+Flake8 uses a 99-character line limit (`.flake8`); no error categories are suppressed. Install `flake8==7.4.1` and `pip-audit==2.9.0` in a local development environment when needed; the CI lock already includes them. Lock regeneration commands are at the top of `requirements-api.in` and `requirements-ci.in`. NumPy, HTTPX (development/tests) and Pydantic are explicit direct dependencies. The extra direct-dependency audit checks the public Torch/Torchvision release versions because PyPI does not resolve their `+cpu` wheel versions during auditing; this is an advisory lookup, not a wheel binary scan.
+
+`build_patchcore --image-size` is persisted in each bank. `visualize_anomalies` defaults to the loaded bank's size and rejects a conflicting explicit `--image-size`. Legacy banks without metadata still load as 256; do not rewrite them without training evidence.
+
+Drift alarm rates use only actual boolean decisions from the newest window. Fewer than `window` decisions yields `alarm_rate: null`, `alarm_rate_status: insufficient_data`, and a `decisions` count. A score PSI warning/alarm remains visible even when decisions are missing; otherwise the category is insufficient. Zero brightness/contrast reference means yield a null change and `*_change_status: zero_reference`. The CLI prints `n/a`, and MLflow skips null metrics. The existing overall severity ordering is retained; read individual category/signal statuses for incomplete data.

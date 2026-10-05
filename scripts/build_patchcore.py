@@ -39,17 +39,19 @@ def main():
     categories = [args.category] if args.category else sorted({
         sample["category"]["label"] for sample in samples
     })
-    if any(not isinstance(category, str) or not category.isidentifier() for category in categories):
+    if any(not isinstance(category, str) or not category.isidentifier()
+           for category in categories):
         parser.error("category names must be safe path components")
     model = PatchCore(args.device, args.max_patches, args.projection_dim, args.seed,
-                      args.selection, args.neighborhood, args.border)
+                      args.selection, args.neighborhood, args.border, image_size=args.image_size)
     for category in categories:
         dataset = MVTecDataset(args.dataset_root, category, "train", args.image_size)
         loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
         model.fit(loader)
         path = args.output_dir / f"{category}.pt"
         model.save(path)
-        print(f"{category}: {len(dataset)} normal images, {len(model.memory_bank)} patches -> {path}")
+        print(f"{category}: {len(dataset)} normal images, "
+              f"{len(model.memory_bank)} patches -> {path}")
 
 
 if __name__ == "__main__":

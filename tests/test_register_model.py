@@ -1,3 +1,4 @@
+import hashlib
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -39,15 +40,27 @@ class RegisterModelTests(unittest.TestCase):
         version = self.client.get_model_version_by_alias("patchcore-mvtec", "production")
         self.assertEqual(str(version.version), "1")
         self.assertEqual(version.run_id, self.run_id)
+        path = version.source.split(f"runs:/{self.run_id}/")[1]
+        self.assertTrue(path.startswith("model/"))
         self.assertEqual(
-            sorted(item.path for item in self.client.list_artifacts(self.run_id, "model")),
-            ["model/bottle.pt", "model/thresholds.json"])
+            sorted(item.path for item in self.client.list_artifacts(self.run_id, path)),
+            [f"{path}/bottle.pt", f"{path}/thresholds.json"])
 
     def test_registering_again_adds_a_version_and_moves_the_alias(self):
         self.register()
+        first = self.client.get_model_version("patchcore-mvtec", "1")
+        artifact = first.source.split(f"runs:/{self.run_id}/")[1] + "/bottle.pt"
+        path = Path(self.client.download_artifacts(self.run_id, artifact))
+        before = hashlib.sha256(path.read_bytes()).hexdigest()
+        (self.model_dir / "bottle.pt").write_bytes(b"different bank")
         self.register()
+        path = Path(self.client.download_artifacts(self.run_id, artifact))
+        self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), before)
+        second = self.client.get_model_version("patchcore-mvtec", "2")
+        self.assertNotEqual(first.source, second.source)
         self.assertEqual(
-            str(self.client.get_model_version_by_alias("patchcore-mvtec", "production").version), "2")
+            str(self.client.get_model_version_by_alias(
+                "patchcore-mvtec", "production").version), "2")
 
     def test_run_id_tags_and_no_alias(self):
         argv = ["register", "--run-id", self.run_id, "--model-dir", str(self.model_dir),

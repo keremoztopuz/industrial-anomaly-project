@@ -1,5 +1,4 @@
 import json
-import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -9,13 +8,11 @@ from pathlib import Path
 import torch
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "api"))
 
 from fastapi.testclient import TestClient
 
-from service import app, load_thresholds
+from api.main import app
+from api.services import load_thresholds
 
 
 class FakeModel:

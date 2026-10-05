@@ -24,7 +24,8 @@ def validate_dataset(root):
     errors = []
     for sample in samples:
         category = sample["category"]["label"]
-        stats = categories.setdefault(category, {"count": 0, "sizes": Counter(), "modes": Counter()})
+        stats = categories.setdefault(
+            category, {"count": 0, "sizes": Counter(), "modes": Counter()})
         stats["count"] += 1
 
         image_path = (root / sample["filepath"]).resolve()
@@ -62,13 +63,16 @@ def validate_dataset(root):
         if error:
             errors.append(f"{category}: corrupt mask {mask_path}: {error}")
         elif mask_size != size:
-            errors.append(f"{category}: mask/image size mismatch: {mask_path} {mask_size} != {image_path} {size}")
+            errors.append(
+                f"{category}: mask/image size mismatch: "
+                f"{mask_path} {mask_size} != {image_path} {size}")
 
     return len(samples), categories, errors
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Decode and validate MVTec images and defect masks.")
+    parser = argparse.ArgumentParser(
+        description="Decode and validate MVTec images and defect masks.")
     parser.add_argument(
         "--dataset-root",
         type=Path,
@@ -78,7 +82,8 @@ def main():
     total, categories, errors = validate_dataset(args.dataset_root)
     print(f"Images: {total} | Categories: {len(categories)} | Errors: {len(errors)}")
     for category, stats in sorted(categories.items()):
-        sizes = ", ".join(f"{w}x{h}: {n}" for (w, h), n in sorted(stats["sizes"].items())) or "none"
+        sizes = ", ".join(f"{w}x{h}: {n}" for (
+            w, h), n in sorted(stats["sizes"].items())) or "none"
         modes = ", ".join(f"{mode}: {n}" for mode, n in sorted(stats["modes"].items())) or "none"
         print(f"{category}: {stats['count']} images | sizes [{sizes}] | modes [{modes}]")
     for error in errors:

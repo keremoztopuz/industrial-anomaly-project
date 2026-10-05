@@ -6,3 +6,5 @@
 -r requirements.txt
 torch==2.14.0+cpu
 torchvision==0.29.0+cpu
+flake8==7.4.1
+pip-audit==2.9.0

@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,3 +28,13 @@ jobs:
 
       - name: Run tests
         run: python -m pytest tests
+
+      - name: Lint
+        run: python -m flake8 anomaly api scripts tests
+
+      - name: Audit locked dependencies
+        run: |
+          python -m pip_audit --no-deps --disable-pip -r requirements-api.lock
+          python -m pip_audit --no-deps --disable-pip -r requirements-ci.lock
+          # Public release advisories also cover the +cpu wheel versions skipped by PyPI.
+          python -m pip_audit --no-deps --disable-pip -r requirements.txt

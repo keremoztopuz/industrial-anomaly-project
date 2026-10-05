@@ -98,6 +98,35 @@ class CheckCategoryTests(unittest.TestCase):
         self.assertAlmostEqual(result["brightness_change"], 0.3, delta=0.05)
         self.assertAlmostEqual(result["contrast_change"], 0.0, delta=0.05)
 
+    def test_missing_decisions_are_not_normal(self):
+        for decision in (None, 0, "false"):
+            recent = [{**r, "is_anomaly": decision} for r in records(50)]
+            result = drift.check_category(recent, REFERENCE)
+            self.assertIsNone(result["alarm_rate"])
+            self.assertEqual(result["alarm_rate_status"], "insufficient_data")
+            self.assertEqual(result["status"], "insufficient_data")
+            self.assertEqual(result["decisions"], 0)
+
+    def test_partial_decisions_and_zero_reference(self):
+        recent = records(50, shift=2)
+        recent[0]["is_anomaly"] = None
+        reference = {**REFERENCE, "brightness": {"reference": [0]},
+                     "contrast": {"reference": [0]}}
+        result = drift.check_category(recent, reference)
+        self.assertEqual(result["decisions"], 49)
+        self.assertIsNone(result["alarm_rate"])
+        self.assertEqual(result["status"], "alarm")
+        for signal in ("brightness", "contrast"):
+            self.assertIsNone(result[f"{signal}_change"])
+            self.assertEqual(result[f"{signal}_change_status"], "zero_reference")
+        self.assertEqual(check_drift.percent(None), "n/a")
+        with mock.patch.object(check_drift, "MlflowClient") as client:
+            check_drift.log_to_mlflow("unused", {"model_version": "2", "window": 50},
+                                      {"bottle": result}, 50)
+            self.assertTrue(client.return_value.log_metric.called)
+            for call in client.return_value.log_metric.call_args_list:
+                self.assertIsNotNone(call.args[2])
+
 
 class CheckDriftScriptTests(unittest.TestCase):
     def test_reads_logs_reports_and_logs_to_mlflow(self):
@@ -118,8 +147,9 @@ class CheckDriftScriptTests(unittest.TestCase):
             argv = ["check", "--reference", str(reference_path), "--tracking-uri", uri]
             output = StringIO()
             with mock.patch("sys.argv", argv), \
-                    mock.patch.object(check_drift, "gcloud", return_value=subprocess.CompletedProcess(
-                        [], 0, stdout=logs)) as gcloud, \
+                    mock.patch.object(check_drift, "gcloud",
+                                      return_value=subprocess.CompletedProcess(
+                                          [], 0, stdout=logs)) as gcloud, \
                     redirect_stdout(output), self.assertRaises(SystemExit) as exit_info:
                 check_drift.main()
 

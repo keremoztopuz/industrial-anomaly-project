@@ -8,12 +8,14 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from torchvision.transforms import InterpolationMode, functional as F
 
+
 def build_transform(image_size):
     return transforms.Compose([
         transforms.Resize((image_size, image_size), InterpolationMode.BILINEAR, antialias=True),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
+
 
 class MVTecDataset(Dataset):
     """Load one MVTec category from FiftyOne metadata, without changing source files."""
@@ -75,8 +77,10 @@ class MVTecDataset(Dataset):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Check the first preprocessed batch of each MVTec category.")
-    parser.add_argument("--dataset-root", type=Path, default=Path(__file__).resolve().parents[1] / "data/mvtec-ad")
+    parser = argparse.ArgumentParser(
+        description="Check the first preprocessed batch of each MVTec category.")
+    parser.add_argument("--dataset-root", type=Path,
+                        default=Path(__file__).resolve().parents[1] / "data/mvtec-ad")
     parser.add_argument("--category", help="Omit to check all categories")
     parser.add_argument("--split", choices=("train", "test"), default="train")
     parser.add_argument("--image-size", type=int, default=256)
@@ -84,7 +88,8 @@ def main():
     try:
         with (args.dataset_root / "samples.json").open(encoding="utf-8") as file:
             samples = json.load(file)["samples"]
-        categories = [args.category] if args.category else sorted({s["category"]["label"] for s in samples})
+        categories = [args.category] if args.category else sorted(
+            {s["category"]["label"] for s in samples})
         for category in categories:
             dataset = MVTecDataset(args.dataset_root, category, args.split, args.image_size)
             batch = next(iter(DataLoader(dataset, batch_size=8, num_workers=0, shuffle=False)))

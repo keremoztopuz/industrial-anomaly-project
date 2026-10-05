@@ -1,5 +1,4 @@
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,7 +7,6 @@ import torch
 from PIL import Image
 from torch.utils.data import DataLoader
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from anomaly.mvtec_dataset import MVTecDataset
 
@@ -51,7 +49,8 @@ class MVTecDatasetTests(unittest.TestCase):
         item = dataset[0]
         self.assertEqual(item["image"].shape, (3, 8, 8))
         self.assertEqual(item["image"].dtype, torch.float32)
-        expected = (torch.ones(3) - torch.tensor([0.485, 0.456, 0.406])) / torch.tensor([0.229, 0.224, 0.225])
+        expected = (torch.ones(3) -
+                    torch.tensor([0.485, 0.456, 0.406])) / torch.tensor([0.229, 0.224, 0.225])
         torch.testing.assert_close(item["image"], expected[:, None, None].expand(3, 8, 8))
         self.assertEqual(item["mask"].dtype, torch.bool)
         self.assertFalse(item["mask"].any())
@@ -74,7 +73,8 @@ class MVTecDatasetTests(unittest.TestCase):
         self.assertEqual(batch["label"].tolist(), [0, 1])
 
     def test_invalid_configuration_and_paths(self):
-        for category, split, size in [("unknown", "train", 8), ("cable", "val", 8), ("cable", "train", 0)]:
+        for category, split, size in [("unknown", "train", 8),
+                                      ("cable", "val", 8), ("cable", "train", 0)]:
             with self.subTest(category=category, split=split, size=size):
                 with self.assertRaises(ValueError):
                     MVTecDataset(self.root, category, split, size)

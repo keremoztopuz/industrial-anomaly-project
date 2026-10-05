@@ -15,6 +15,13 @@ from anomaly.patchcore import PatchCore
 
 
 def render_category(dataset_root, output_root, category, image_size, device):
+    bank_path = output_root / "patchcore" / f"{category}.pt"
+    if not bank_path.is_file():
+        raise FileNotFoundError(f"Missing memory bank: {bank_path}")
+    model = PatchCore.load(bank_path, device=device)
+    if image_size is not None and image_size != model.image_size:
+        raise ValueError("--image-size must match the loaded model image_size")
+    image_size = model.image_size
     dataset = MVTecDataset(dataset_root, category, "test", image_size)
     good = sorted((i for i, sample in enumerate(dataset.samples)
                    if sample["defect"]["label"] == "good"),
@@ -25,10 +32,6 @@ def render_category(dataset_root, output_root, category, image_size, device):
     if len(good) < 2 or len(defective) < 2:
         raise ValueError(f"{category}: need at least two good and two defective test samples")
 
-    bank_path = output_root / "patchcore" / f"{category}.pt"
-    if not bank_path.is_file():
-        raise FileNotFoundError(f"Missing memory bank: {bank_path}")
-    model = PatchCore.load(bank_path, device=device)
     samples = [dataset[i] for i in good[:2] + defective[:2]]
     images = torch.stack([sample["image"] for sample in samples])
     scores, maps = model.predict(images)
@@ -45,7 +48,8 @@ def render_category(dataset_root, output_root, category, image_size, device):
         image = ((sample["image"] * std + mean).clamp(0, 1) * 255)
         rgb = Image.fromarray(image.permute(1, 2, 0).byte().numpy(), "RGB")
         mask = Image.fromarray(sample["mask"][0].byte().numpy() * 255, "L")
-        intensity = ((maps[row] - low) / (high - low)).clamp(0, 1) if high > low else torch.zeros_like(maps[row])
+        intensity = (((maps[row] - low) / (high - low)).clamp(0, 1)
+                     if high > low else torch.zeros_like(maps[row]))
         alpha = Image.fromarray((intensity * 170).byte().numpy(), "L")
         overlay = Image.composite(Image.new("RGB", rgb.size, "red"), rgb, alpha)
         for col, panel in enumerate((rgb, mask, overlay)):
@@ -66,10 +70,10 @@ def main():
     parser.add_argument("--dataset-root", type=Path, default=Path("data/mvtec-ad"))
     parser.add_argument("--output-root", type=Path, default=Path("artifacts"))
     parser.add_argument("--category", help="Render one category; default is all categories")
-    parser.add_argument("--image-size", type=int, default=256)
+    parser.add_argument("--image-size", type=int, default=None)
     parser.add_argument("--device", default="cpu")
     args = parser.parse_args()
-    if args.image_size <= 0:
+    if args.image_size is not None and args.image_size <= 0:
         parser.error("--image-size must be positive")
     with (args.dataset_root / "samples.json").open(encoding="utf-8") as file:
         samples = json.load(file)["samples"]

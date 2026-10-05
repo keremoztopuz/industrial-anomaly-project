@@ -58,9 +58,12 @@ def psi_status(value, warn=WARN_PSI, alarm=ALARM_PSI):
     return "stable"
 
 
-def alarm_rate_status(is_anomaly_flags):
-    """Return "stable" or "alarm" for the share of flagged predictions in a window."""
-    rate = sum(is_anomaly_flags) / len(is_anomaly_flags)
+def alarm_rate_status(is_anomaly_flags, window=WINDOW):
+    """Check the boolean decision rate, or report insufficient_data for a short window."""
+    flags = [flag for flag in is_anomaly_flags if type(flag) is bool]
+    if len(flags) < window:
+        return "insufficient_data"
+    rate = sum(flags) / len(flags)
     return "alarm" if rate > EXPECTED_FALSE_POSITIVE_RATE * ALARM_RATE_FACTOR else "stable"
 
 
@@ -98,15 +101,21 @@ def check_category(records, reference, window=WINDOW):
                                        [record["anomaly_score"] for record in recent])}
     result["anomaly_score_status"] = psi_status(
         result["psi_anomaly_score"], score["warn"], score["alarm"])
-    flags = [bool(record["is_anomaly"]) for record in recent]
-    result["alarm_rate"] = sum(flags) / len(flags)
-    result["alarm_rate_status"] = alarm_rate_status(flags)
+    flags = [record["is_anomaly"] for record in recent
+             if type(record.get("is_anomaly")) is bool]
+    result["decisions"] = len(flags)
+    result["alarm_rate"] = sum(flags) / len(flags) if len(flags) >= window else None
+    result["alarm_rate_status"] = alarm_rate_status(flags, window)
     result["status"] = max((result["anomaly_score_status"], result["alarm_rate_status"]),
                            key=SEVERITY.get)
+    if result["status"] == "stable" and result["alarm_rate"] is None:
+        result["status"] = "insufficient_data"
     for signal in INPUT_SIGNALS:
         baseline = float(np.mean(reference[signal]["reference"]))
         result[f"{signal}_change"] = (
-            float(np.mean([record[signal] for record in recent])) - baseline) / baseline
+            (float(np.mean([record[signal] for record in recent])) - baseline) / baseline
+            if baseline != 0 else None)
+        result[f"{signal}_change_status"] = "ok" if baseline != 0 else "zero_reference"
     return result
 
 

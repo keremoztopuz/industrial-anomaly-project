@@ -14,7 +14,8 @@ def count_samples(samples):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Summarize MVTec images by category, split and defect.")
+    parser = argparse.ArgumentParser(
+        description="Summarize MVTec images by category, split and defect.")
     parser.add_argument(
         "--samples",
         type=Path,
@@ -31,7 +32,8 @@ def main():
     for category, counts in sorted(categories.items()):
         totals = [
             sum(n for (s, d), n in counts.items() if s == split and (d == "good") == normal)
-            for split, normal in [("train", True), ("train", False), ("test", True), ("test", False)]
+            for split, normal in [("train", True), ("train", False),
+                                  ("test", True), ("test", False)]
         ]
         print(f"{category:<16} {sum(counts.values()):>6}" + "".join(f"{n:>13}" for n in totals))
 

@@ -1,4 +1,3 @@
-import sys
 import tempfile
 import unittest
 from contextlib import contextmanager
@@ -7,7 +6,6 @@ from unittest import mock
 
 import torch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from anomaly import patchcore
 from anomaly.patchcore import PatchCore
