@@ -65,8 +65,9 @@ class CalibrationTests(unittest.TestCase):
         self.assertLess(crossed, 0.03)
 
     def test_is_reproducible(self):
-        self.assertEqual(drift.calibrate_psi_thresholds(NORMAL, trials=200),
-                         drift.calibrate_psi_thresholds(NORMAL, trials=200))
+        first = drift.calibrate_psi_thresholds(NORMAL, trials=200)
+        second = drift.calibrate_psi_thresholds(NORMAL, trials=200)
+        self.assertEqual(first, second)
 
 
 class CheckCategoryTests(unittest.TestCase):
@@ -92,7 +93,8 @@ class CheckCategoryTests(unittest.TestCase):
 
 class CheckDriftScriptTests(unittest.TestCase):
     def test_reads_logs_reports_and_logs_to_mlflow(self):
-        with tempfile.TemporaryDirectory() as directory:
+        # The script only reads a reference inside the current directory.
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
             root = Path(directory)
             reference_path = root / "drift_reference.json"
             reference_path.write_text(json.dumps({
@@ -123,6 +125,15 @@ class CheckDriftScriptTests(unittest.TestCase):
             self.assertEqual(run.data.tags["status/bottle"], "alarm")
             self.assertEqual(run.data.tags["status/pill"], "insufficient_data")
             self.assertIn("psi_anomaly_score/bottle", run.data.metrics)
+
+
+class ReferencePathTests(unittest.TestCase):
+    def test_reference_outside_the_repository_is_rejected(self):
+        argv = ["check", "--reference", "/etc/drift_reference.json", "--no-mlflow"]
+        with mock.patch("sys.argv", argv), redirect_stdout(StringIO()), \
+                mock.patch("sys.stderr", StringIO()), self.assertRaises(SystemExit) as exit_info:
+            check_drift.main()
+        self.assertEqual(exit_info.exception.code, 2)
 
 
 if __name__ == "__main__":

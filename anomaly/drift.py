@@ -66,11 +66,6 @@ def calibrate_psi_thresholds(reference, window=WINDOW, bins=BINS, trials=2000, s
     reference = np.asarray(reference, dtype=float)
     rng = np.random.default_rng(seed)
 
-    sample = rng.choice(reference, size=window, replace=True)
-    psi_values = [psi(reference, sample, bins)]
-    psi_values += np.quantile([psi(reference, rng.choice(reference, size=window, replace=True), bins)
-                                   for _ in range(trials)], [0.05, 0.01]).tolist()
-
     values = [psi(reference, rng.choice(reference, size=window, replace=True), bins)
               for _ in range(trials)]
     return float(np.quantile(values, 0.95)), float(np.quantile(values, 0.99))

@@ -74,7 +74,10 @@ def main():
     parser.add_argument("--no-mlflow", action="store_true")
     args = parser.parse_args()
 
-    reference = json.loads(args.reference.read_text(encoding="utf-8"))
+    reference_path = args.reference.resolve()
+    if not reference_path.is_relative_to(Path.cwd().resolve()):
+        parser.error("--reference must be inside the current directory")
+    reference = json.loads(reference_path.read_text(encoding="utf-8"))
     predictions = fetch_predictions(args.project, args.service, reference["model_version"],
                                     args.freshness, args.limit)
     results = check_all(predictions, reference)
