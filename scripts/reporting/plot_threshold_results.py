@@ -18,6 +18,7 @@ import torch
 from anomaly.data.mvtec_dataset import MVTecDataset
 from anomaly.evaluation.scoring import confusion, score
 from anomaly.model.patchcore import PatchCore
+from anomaly.settings import settings
 from anomaly.utils import default_device, write_json
 
 THEMES = {
@@ -211,9 +212,8 @@ def draw_distributions(scores, thresholds, per_category, theme, path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset-root", type=Path, default=Path("data/mvtec-ad"))
-    parser.add_argument("--model-dir", type=Path,
-                        default=Path("artifacts/border-exclusion/coreset-16384-n3-b2/patchcore"))
+    parser.add_argument("--dataset-root", type=Path, default=settings.dataset_root)
+    parser.add_argument("--model-dir", type=Path, default=settings.model_dir)
     parser.add_argument("--output-dir", type=Path, default=Path("reports/figures"))
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--device", default=default_device())

@@ -8,7 +8,7 @@ from unittest import mock
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from api import config
+from api.config import settings
 from api.main import app
 from api.middleware import RequestSizeLimit
 from api.services import image_decoding, model_loading
@@ -24,16 +24,16 @@ class ImageSafetyTests(unittest.TestCase):
         return self.client.post("/predict/bottle", files={"upload_file": ("image.png", contents)})
 
     def test_limits_prevent_prediction(self):
-        for setting, limit in (("MAX_UPLOAD_BYTES", 10), ("MAX_IMAGE_PIXELS", 10),
-                               ("MAX_REQUEST_BYTES", 10)):
-            with self.subTest(setting=setting), mock.patch.object(config, setting, limit):
+        for setting, limit in (("max_upload_bytes", 10), ("max_image_pixels", 10),
+                               ("max_request_bytes", 10)):
+            with self.subTest(setting=setting), mock.patch.object(settings, setting, limit):
                 self.assertEqual(self.upload(image_bytes()).status_code, 413)
                 self.assertIsNone(self.model.last_batch)
 
     def test_exact_byte_and_pixel_limits_are_allowed(self):
         contents = image_bytes()
-        with mock.patch.object(config, "MAX_UPLOAD_BYTES", len(contents)), \
-                mock.patch.object(config, "MAX_IMAGE_PIXELS", 64 * 48):
+        with mock.patch.object(settings, "max_upload_bytes", len(contents)), \
+                mock.patch.object(settings, "max_image_pixels", 64 * 48):
             self.assertEqual(self.upload(contents).status_code, 200)
 
     def test_pillow_decompression_bomb_is_413(self):
@@ -48,7 +48,7 @@ class ImageSafetyTests(unittest.TestCase):
     def test_bounded_read(self):
         file = mock.Mock()
         file.read.return_value = b"x" * 11
-        with mock.patch.object(config, "MAX_UPLOAD_BYTES", 10), \
+        with mock.patch.object(settings, "max_upload_bytes", 10), \
                 self.assertRaises(image_decoding.ImageTooLarge):
             image_decoding.decode_image(file)
         file.read.assert_called_once_with(11)
@@ -62,7 +62,7 @@ class ImageSafetyTests(unittest.TestCase):
                 {"type": "http.request", "body": b"78901", "more_body": False},
             ])
             send = mock.AsyncMock()
-            with mock.patch.object(config, "MAX_REQUEST_BYTES", 10):
+            with mock.patch.object(settings, "max_request_bytes", 10):
                 await middleware({"type": "http", "headers": headers}, receive, send)
             downstream.assert_not_awaited()
             self.assertEqual(send.call_args_list[0].args[0]["status"], 413)
@@ -85,14 +85,14 @@ class ImageSafetyTests(unittest.TestCase):
 class StartupTests(unittest.TestCase):
     def test_empty_directory_fails_real_lifespan(self):
         with tempfile.TemporaryDirectory() as directory, \
-                mock.patch.object(config, "MODEL_DIR", Path(directory)), \
+                mock.patch.object(settings, "model_dir", Path(directory)), \
                 self.assertRaisesRegex(RuntimeError, "No category models"):
             with TestClient(app):
                 pass
 
     def test_startup_loads_models_and_missing_calibration(self):
         with tempfile.TemporaryDirectory() as directory, \
-                mock.patch.object(config, "MODEL_DIR", Path(directory)), \
+                mock.patch.object(settings, "model_dir", Path(directory)), \
                 mock.patch.object(model_loading.PatchCore, "load") as load:
             (Path(directory) / "bottle.pt").touch()
             load.return_value = FakeModel(0.5)
@@ -109,7 +109,7 @@ class StartupTests(unittest.TestCase):
         malformed += [json.dumps({"categories": {"bottle": {"threshold": value}}})
                       for value in (None, True, "1", -1, float("nan"), float("inf"))]
         with tempfile.TemporaryDirectory() as directory, \
-                mock.patch.object(config, "MODEL_DIR", Path(directory)), \
+                mock.patch.object(settings, "model_dir", Path(directory)), \
                 mock.patch.object(model_loading, "load_models",
                                   return_value={"bottle": FakeModel(1)}):
             path = Path(directory) / "thresholds.json"

@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw
 
 from anomaly.data.mvtec_dataset import MVTecDataset
 from anomaly.model.patchcore import PatchCore
+from anomaly.settings import settings
 
 
 def render_category(dataset_root, output_root, category, image_size, device):
@@ -67,8 +68,8 @@ def render_category(dataset_root, output_root, category, image_size, device):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset-root", type=Path, default=Path("data/mvtec-ad"))
-    parser.add_argument("--output-root", type=Path, default=Path("artifacts"))
+    parser.add_argument("--dataset-root", type=Path, default=settings.dataset_root)
+    parser.add_argument("--output-root", type=Path, default=settings.artifacts_root)
     parser.add_argument("--category", help="Render one category; default is all categories")
     parser.add_argument("--image-size", type=int, default=None)
     parser.add_argument("--device", default="cpu")

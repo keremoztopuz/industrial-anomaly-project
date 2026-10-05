@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from anomaly.monitoring import drift, drift_job
+from anomaly.settings import settings
 from tests.support.drift_data import REFERENCE, records
 
 
@@ -67,7 +68,7 @@ class DriftJobTests(unittest.TestCase):
             path.write_text(json.dumps({"model_version": "1", "window": 50,
                                         "categories": {"bottle": REFERENCE}}), encoding="utf-8")
             output = StringIO()
-            with mock.patch.dict("os.environ", {"DRIFT_REFERENCE": str(path)}), \
+            with mock.patch.object(settings, "drift_reference", path), \
                     mock.patch.object(drift_job, "metadata",
                                       side_effect=["proj", json.dumps({"access_token": "t"})]), \
                     mock.patch.object(drift_job, "fetch_predictions",

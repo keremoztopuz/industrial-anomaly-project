@@ -8,7 +8,7 @@ import torch
 from PIL import ImageStat
 
 from anomaly.data.mvtec_dataset import build_transform
-from api import config
+from api.config import settings
 
 
 @lru_cache
@@ -26,7 +26,7 @@ def predict_image(model, image, category, threshold):
     score = scores[0].item()
     is_anomaly = None if threshold is None else score > threshold
     print(json.dumps({
-        "event": "prediction", "category": category, "model_version": config.MODEL_VERSION,
+        "event": "prediction", "category": category, "model_version": settings.model_version,
         "anomaly_score": round(score, 2), "threshold": threshold, "is_anomaly": is_anomaly,
         "latency_ms": round((time.perf_counter() - start) * 1000, 2),
         "width": image.width, "height": image.height,

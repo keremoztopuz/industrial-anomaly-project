@@ -5,6 +5,8 @@ from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 
+from anomaly.settings import settings
+
 
 def inspect_image(path):
     try:
@@ -76,7 +78,7 @@ def main():
     parser.add_argument(
         "--dataset-root",
         type=Path,
-        default=Path(__file__).resolve().parents[2] / "data/mvtec-ad",
+        default=settings.dataset_root,
     )
     args = parser.parse_args()
     total, categories, errors = validate_dataset(args.dataset_root)

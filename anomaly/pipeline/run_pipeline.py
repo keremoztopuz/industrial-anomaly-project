@@ -18,6 +18,7 @@ from torch.utils.data import DataLoader
 from anomaly.evaluation.metrics import evaluate_category
 from anomaly.data.mvtec_dataset import MVTecDataset
 from anomaly.model.patchcore import PatchCore
+from anomaly.settings import TRAINING_EXPERIMENT, settings
 
 
 def categories_from_metadata(dataset_root):
@@ -55,7 +56,7 @@ def run_category(category, dataset_root, output_root, image_size, batch_size,
 def run_pipeline(dataset_root, output_root, image_size=256, batch_size=8,
                  device="cpu", max_patches=2048, projection_dim=256, seed=42,
                  category=None, selection="random", neighborhood=1,
-                 border=0, tracking_uri="sqlite:///mlflow.db"):
+                 border=0, tracking_uri=settings.mlflow_tracking_uri):
     if image_size <= 0 or batch_size <= 0:
         raise ValueError("image_size and batch_size must be positive")
     dataset_root, output_root = Path(dataset_root).resolve(), Path(output_root).resolve()
@@ -66,7 +67,7 @@ def run_pipeline(dataset_root, output_root, image_size=256, batch_size=8,
         categories = [category]
     output_root.mkdir(parents=True, exist_ok=True)
     mlflow.set_tracking_uri(tracking_uri)
-    mlflow.set_experiment("patchcore-mvtec")
+    mlflow.set_experiment(TRAINING_EXPERIMENT)
     with mlflow.start_run(run_name=output_root.name):
         mlflow.log_params({
             "dataset_root": str(dataset_root),
@@ -160,9 +161,9 @@ def run_pipeline(dataset_root, output_root, image_size=256, batch_size=8,
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-root", type=Path,
-                        default=Path(__file__).resolve().parents[2] / "data/mvtec-ad")
+                        default=settings.dataset_root)
     parser.add_argument("--output-root", type=Path,
-                        default=Path(__file__).resolve().parents[2] / "artifacts")
+                        default=settings.artifacts_root)
     parser.add_argument("--category", help="Run one category; omit to run all categories")
     parser.add_argument("--image-size", type=int, default=256)
     parser.add_argument("--batch-size", type=int, default=8)
@@ -175,7 +176,7 @@ def main():
                         help="Odd feature-averaging window; PatchCore uses 3")
     parser.add_argument("--border", type=int, default=0,
                         help="Outer patch rings ignored by image scores")
-    parser.add_argument("--tracking-uri", default="sqlite:///mlflow.db",
+    parser.add_argument("--tracking-uri", default=settings.mlflow_tracking_uri,
                         help="MLflow tracking URI")
     args = parser.parse_args()
     run_pipeline(**vars(args))

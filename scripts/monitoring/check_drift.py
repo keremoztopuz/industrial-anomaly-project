@@ -16,9 +16,8 @@ from pathlib import Path
 from mlflow.tracking import MlflowClient
 
 from anomaly.monitoring.drift import INPUT_SIGNALS, check_all, overall_status
+from anomaly.settings import MONITORING_EXPERIMENT, settings
 from scripts.cloud import gcloud
-
-EXPERIMENT = "monitoring"
 
 
 def fetch_predictions(project, service, model_version, freshness, limit):
@@ -33,9 +32,9 @@ def fetch_predictions(project, service, model_version, freshness, limit):
 
 def log_to_mlflow(tracking_uri, reference, results, fetched, label=None):
     client = MlflowClient(tracking_uri)
-    experiment = client.get_experiment_by_name(EXPERIMENT)
+    experiment = client.get_experiment_by_name(MONITORING_EXPERIMENT)
     experiment_id = (experiment.experiment_id if experiment
-                     else client.create_experiment(EXPERIMENT))
+                     else client.create_experiment(MONITORING_EXPERIMENT))
     overall = overall_status(results)
     tags = {"status": overall, **({"label": label} if label else {})}
     run = client.create_run(
@@ -61,13 +60,12 @@ def percent(value):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--reference", type=Path,
-                        default=Path("artifacts/border-exclusion/coreset-16384-n3-b2/patchcore/"
-                                     "drift_reference.json"))
-    parser.add_argument("--project", default="industrial-anomaly-510523")
-    parser.add_argument("--service", default="anomaly-api")
+                        default=settings.model_dir / "drift_reference.json")
+    parser.add_argument("--project", default=settings.gcp_project)
+    parser.add_argument("--service", default=settings.service_name)
     parser.add_argument("--freshness", default="30d", help="How far back to read logs")
     parser.add_argument("--limit", type=int, default=5000)
-    parser.add_argument("--tracking-uri", default="sqlite:///mlflow.db")
+    parser.add_argument("--tracking-uri", default=settings.mlflow_tracking_uri)
     parser.add_argument("--no-mlflow", action="store_true")
     parser.add_argument(
         "--label", help="Name for this check in MLflow, e.g. a simulation scenario")

@@ -9,22 +9,23 @@ from uuid import uuid4
 
 from mlflow.tracking import MlflowClient
 
-MODEL_NAME = "patchcore-mvtec"
+from anomaly.settings import TRAINING_EXPERIMENT, settings
+
+MODEL_NAME = settings.model_name
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-dir", default="border-exclusion/coreset-16384-n3-b2",
                         help="source_dir tag of the run to register")
-    parser.add_argument("--model-dir", type=Path,
-                        default=Path("artifacts/border-exclusion/coreset-16384-n3-b2/patchcore"))
+    parser.add_argument("--model-dir", type=Path, default=settings.model_dir)
     parser.add_argument(
         "--run-id", help="Register this run directly instead of looking up --source-dir")
     parser.add_argument("--alias", default="production",
                         help="Alias to move; empty to leave aliases")
     parser.add_argument("--tag", action="append", default=[], metavar="KEY=VALUE",
                         help="Tag for the new version, e.g. base_version=1; repeatable")
-    parser.add_argument("--tracking-uri", default="sqlite:///mlflow.db")
+    parser.add_argument("--tracking-uri", default=settings.mlflow_tracking_uri)
     args = parser.parse_args()
     client = MlflowClient(args.tracking_uri)
 
@@ -32,7 +33,7 @@ def main():
     if args.run_id:
         run_id = client.get_run(args.run_id).info.run_id
     else:
-        experiment = client.get_experiment_by_name("patchcore-mvtec")
+        experiment = client.get_experiment_by_name(TRAINING_EXPERIMENT)
         runs = client.search_runs(
             [experiment.experiment_id],
             filter_string=f"tags.source_dir = '{args.source_dir}'"

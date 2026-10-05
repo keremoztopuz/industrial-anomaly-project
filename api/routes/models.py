@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Request
 
-from api import config
+from api.config import settings
 from api.schemas import CategoriesResponse, ModelResponse
 
 router = APIRouter()
@@ -18,5 +18,5 @@ def list_loaded_product_categories(request: Request):
 @router.get("/model", response_model=ModelResponse, summary="Get deployed model information")
 def get_deployed_model_info(request: Request):
     """Return the model identity, storage directory and number of loaded categories."""
-    return {"name": config.MODEL_NAME, "version": config.MODEL_VERSION,
-            "model_dir": str(config.MODEL_DIR), "categories": len(request.app.state.models)}
+    return {"name": settings.model_name, "version": settings.model_version,
+            "model_dir": str(settings.model_dir), "categories": len(request.app.state.models)}

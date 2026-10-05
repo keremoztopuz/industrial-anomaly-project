@@ -3,6 +3,8 @@ import json
 from collections import Counter
 from pathlib import Path
 
+from anomaly.settings import settings
+
 
 def count_samples(samples):
     categories = {}
@@ -19,7 +21,7 @@ def main():
     parser.add_argument(
         "--samples",
         type=Path,
-        default=Path(__file__).resolve().parents[2] / "data/mvtec-ad/samples.json",
+        default=settings.dataset_root / "samples.json",
     )
     args = parser.parse_args()
     with args.samples.open(encoding="utf-8") as file:
