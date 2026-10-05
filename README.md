@@ -47,6 +47,7 @@ Per-category tables, run manifests and caveats are in [`reports/`](reports/) (wr
 | [`border_exclusion.md`](reports/border_exclusion.md) | Why was `grid` failing, and how was it fixed? |
 | [`threshold_calibration.md`](reports/threshold_calibration.md) | Where should the defective/normal cut-off be? |
 | [`drift_simulation.md`](reports/drift_simulation.md) | Does the drift check catch lighting, focus and defect changes? |
+| [`pill_resolution.md`](reports/pill_resolution.md) | Does a higher resolution help `pill`, and how fast is a rollback? |
 
 ## How it works
 
@@ -74,6 +75,7 @@ scripts/
   build_patchcore.py      Build memory banks without evaluating
   calibrate_thresholds.py Pick each category's is_anomaly threshold from held-out normal images
   compare_threshold_rules.py  Compare threshold rules on a validation half of the test set
+  compare_resolutions.py  Pick a category's input size on a validation half of its test set
   plot_threshold_results.py   Draw the threshold figures in reports/figures/
   backfill_mlflow.py      Record runs made before MLflow tracking
   register_model.py       Register a run's banks as a new patchcore-mvtec version
@@ -223,6 +225,8 @@ The deployed banks are registered as the `patchcore-mvtec` model. Each version p
 ```
 
 Each version gets its own folder in the bucket and is never overwritten. To roll back, move the `production` alias to an older version and run `deploy_model.py` again: the files are already there, so only the service's environment changes. `GET /model` shows which version is live.
+
+Each bank stores the input size it was fit at, and the service resizes each category's images to its own bank's size. **Version 2**, live now, is version 1 with `pill` refit at 320 × 320, chosen on a validation half of the pill test set. Pill image AUROC on the final half went from 0.953 to 0.963, and pill recall at the deployed threshold from 49% to 65% with no false alarms. A rollback drill took 97 s to promote v2 (including the upload), 49 s to roll back to v1 and 70 s to promote v2 again ([`pill_resolution.md`](reports/pill_resolution.md)).
 
 ## Monitoring
 
