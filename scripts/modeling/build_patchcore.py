@@ -12,11 +12,12 @@ from torch.utils.data import DataLoader
 
 from anomaly.data.mvtec_dataset import MVTecDataset
 from anomaly.model.patchcore import PatchCore
+from anomaly.settings import settings
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset-root", type=Path, default=Path("data/mvtec-ad"))
+    parser.add_argument("--dataset-root", type=Path, default=settings.dataset_root)
     parser.add_argument("--output-dir", type=Path, default=Path("artifacts/patchcore"))
     parser.add_argument("--category", help="Build only this category; default is all categories")
     parser.add_argument("--batch-size", type=int, default=8)

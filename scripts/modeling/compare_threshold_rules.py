@@ -26,9 +26,9 @@ from mlflow.tracking import MlflowClient
 
 from anomaly.evaluation.scoring import balanced_accuracy, confusion
 from anomaly.evaluation.splits import split_halves
+from anomaly.settings import THRESHOLD_RULES_EXPERIMENT, settings
 from anomaly.utils import write_json
 
-EXPERIMENT = "threshold-rules"
 MAD_SCALE = 1.4826
 K_VALUES = (2, 3, 4, 5, 6)
 
@@ -99,9 +99,8 @@ def load_inputs(model_dir, seed):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model-dir", type=Path,
-                        default=Path("artifacts/border-exclusion/coreset-16384-n3-b2/patchcore"))
-    parser.add_argument("--tracking-uri", default="sqlite:///mlflow.db")
+    parser.add_argument("--model-dir", type=Path, default=settings.model_dir)
+    parser.add_argument("--tracking-uri", default=settings.mlflow_tracking_uri)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--write", action="store_true",
                         help="Write the winner's thresholds to thresholds.json")
@@ -113,9 +112,9 @@ def main():
     calibration, holdout, scores, splits = load_inputs(model_dir, args.seed)
 
     client = MlflowClient(args.tracking_uri)
-    experiment = client.get_experiment_by_name(EXPERIMENT)
+    experiment = client.get_experiment_by_name(THRESHOLD_RULES_EXPERIMENT)
     experiment_id = (experiment.experiment_id if experiment
-                     else client.create_experiment(EXPERIMENT))
+                     else client.create_experiment(THRESHOLD_RULES_EXPERIMENT))
     rules, runs, results = {}, {}, []
     for name, k, rule in candidates():
         thresholds = {category: rule(values) for category, values in holdout.items()}

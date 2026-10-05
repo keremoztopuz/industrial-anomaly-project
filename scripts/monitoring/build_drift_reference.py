@@ -19,6 +19,7 @@ from anomaly.data.mvtec_dataset import MVTecDataset
 from anomaly.monitoring.drift import (
     BINS, EXPECTED_FALSE_POSITIVE_RATE, WINDOW, calibrate_psi_thresholds,
 )
+from anomaly.settings import settings
 from anomaly.utils import write_json
 
 
@@ -39,9 +40,8 @@ def signal(values, window):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset-root", type=Path, default=Path("data/mvtec-ad"))
-    parser.add_argument("--model-dir", type=Path,
-                        default=Path("artifacts/border-exclusion/coreset-16384-n3-b2/patchcore"))
+    parser.add_argument("--dataset-root", type=Path, default=settings.dataset_root)
+    parser.add_argument("--model-dir", type=Path, default=settings.model_dir)
     parser.add_argument("--model-version", default="1",
                         help="Registry version these banks are deployed as")
     parser.add_argument("--window", type=int, default=WINDOW)

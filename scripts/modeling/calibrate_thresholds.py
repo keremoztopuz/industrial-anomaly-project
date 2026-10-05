@@ -19,6 +19,7 @@ from anomaly.data.mvtec_dataset import MVTecDataset
 from anomaly.evaluation.scoring import confusion, score
 from anomaly.evaluation.splits import split_indices
 from anomaly.model.patchcore import PatchCore
+from anomaly.settings import settings
 from anomaly.utils import default_device, write_json
 
 
@@ -50,18 +51,17 @@ def calibrate_category(category, args, backbone):
     }, confusion(test_scores, test_labels, threshold)
 
 
-def merge_categories(path, settings, results):
+def merge_categories(path, run_settings, results):
     """Return the file's contents with `results` replacing only those categories."""
     existing = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
     categories = {**existing.get("categories", {}), **results}
-    return {**existing, **settings, "categories": categories}
+    return {**existing, **run_settings, "categories": categories}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset-root", type=Path, default=Path("data/mvtec-ad"))
-    parser.add_argument("--model-dir", type=Path,
-                        default=Path("artifacts/border-exclusion/coreset-16384-n3-b2/patchcore"))
+    parser.add_argument("--dataset-root", type=Path, default=settings.dataset_root)
+    parser.add_argument("--model-dir", type=Path, default=settings.model_dir)
     parser.add_argument("--category", help="Calibrate only this category; default is all banks")
     parser.add_argument("--holdout-fraction", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
@@ -86,12 +86,12 @@ def main():
               f"test recall {result['recall']:.3f}, "
               f"false positive rate {result['false_positive_rate']:.3f}", flush=True)
 
-    settings = {"method": "max held-out normal score", "holdout_fraction": args.holdout_fraction,
-                "seed": args.seed}
+    run_settings = {"method": "max held-out normal score",
+                    "holdout_fraction": args.holdout_fraction, "seed": args.seed}
     for name, results in (("thresholds.json", thresholds),
                           ("threshold_evaluation.json", evaluation)):
         path = model_dir / name
-        write_json(path, merge_categories(path, settings, results))
+        write_json(path, merge_categories(path, run_settings, results))
 
 
 if __name__ == "__main__":

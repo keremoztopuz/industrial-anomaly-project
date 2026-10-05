@@ -8,6 +8,8 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from torchvision.transforms import InterpolationMode, functional as F
 
+from anomaly.settings import settings
+
 
 def build_transform(image_size):
     return transforms.Compose([
@@ -80,7 +82,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Check the first preprocessed batch of each MVTec category.")
     parser.add_argument("--dataset-root", type=Path,
-                        default=Path(__file__).resolve().parents[2] / "data/mvtec-ad")
+                        default=settings.dataset_root)
     parser.add_argument("--category", help="Omit to check all categories")
     parser.add_argument("--split", choices=("train", "test"), default="train")
     parser.add_argument("--image-size", type=int, default=256)

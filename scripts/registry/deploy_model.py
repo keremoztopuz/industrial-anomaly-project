@@ -14,9 +14,10 @@ import mlflow
 from mlflow.tracking import MlflowClient
 
 from anomaly.model.thresholds import load_thresholds
+from anomaly.settings import settings
 from scripts.cloud import gcloud
 
-MODEL_NAME = "patchcore-mvtec"
+MODEL_NAME = settings.model_name
 # The drift job runs this module from the serving image; the command is set on every
 # deployment so the job and the code layout cannot drift apart.
 DRIFT_JOB_COMMAND = "python"
@@ -76,12 +77,12 @@ def remote_files(bucket_path, project):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--alias", default="production")
-    parser.add_argument("--tracking-uri", default="sqlite:///mlflow.db")
-    parser.add_argument("--bucket", default="anomaly-api")
-    parser.add_argument("--project", default="industrial-anomaly-510523")
-    parser.add_argument("--region", default="europe-west1")
-    parser.add_argument("--service", default="anomaly-api")
-    parser.add_argument("--drift-job", default="drift-check",
+    parser.add_argument("--tracking-uri", default=settings.mlflow_tracking_uri)
+    parser.add_argument("--bucket", default=settings.model_bucket)
+    parser.add_argument("--project", default=settings.gcp_project)
+    parser.add_argument("--region", default=settings.gcp_region)
+    parser.add_argument("--service", default=settings.service_name)
+    parser.add_argument("--drift-job", default=settings.drift_job_name,
                         help="Cloud Run Job that checks drift; empty to skip")
     args = parser.parse_args()
     mlflow.set_tracking_uri(args.tracking_uri)

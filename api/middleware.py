@@ -2,7 +2,7 @@
 
 from fastapi.responses import JSONResponse
 
-from api import config
+from api.config import settings
 
 
 class BodyTooLarge(Exception):
@@ -61,7 +61,7 @@ class RequestSizeLimit:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
-        limit = config.MAX_REQUEST_BYTES
+        limit = settings.max_request_bytes
         error, body = declared_length_error(scope, limit), None
         if error is None:
             try:

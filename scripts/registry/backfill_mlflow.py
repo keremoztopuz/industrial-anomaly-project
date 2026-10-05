@@ -16,7 +16,8 @@ from pathlib import Path
 from mlflow.entities import Metric, Param, RunTag
 from mlflow.tracking import MlflowClient
 
-EXPERIMENT = "patchcore-mvtec"
+from anomaly.settings import TRAINING_EXPERIMENT, settings
+
 PARAM_DEFAULTS = {"selection": "random", "neighborhood": 1, "border": 0}
 PARAM_KEYS = ("image_size", "batch_size", "device", "max_patches", "projection_dim",
               "seed", "selection", "neighborhood", "border")
@@ -118,8 +119,8 @@ def log_run(client, experiment_id, run):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--artifacts-root", type=Path, default=Path("artifacts"))
-    parser.add_argument("--tracking-uri", default="sqlite:///mlflow.db")
+    parser.add_argument("--artifacts-root", type=Path, default=settings.artifacts_root)
+    parser.add_argument("--tracking-uri", default=settings.mlflow_tracking_uri)
     parser.add_argument("--include-smoke", action="store_true",
                         help="Also record smoke and recheck runs")
     parser.add_argument("--dry-run", action="store_true",
@@ -135,9 +136,9 @@ def main():
         return
 
     client = MlflowClient(args.tracking_uri)
-    experiment = client.get_experiment_by_name(EXPERIMENT)
+    experiment = client.get_experiment_by_name(TRAINING_EXPERIMENT)
     experiment_id = (experiment.experiment_id if experiment
-                     else client.create_experiment(EXPERIMENT))
+                     else client.create_experiment(TRAINING_EXPERIMENT))
     sources, roots = existing_sources(client, experiment_id)
     created = 0
     for run in runs:

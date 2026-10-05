@@ -2554,7 +2554,9 @@ pydantic-extra-types==2.11.1 \
 pydantic-settings==2.15.0 \
     --hash=sha256:0ba092c291c94baceb5eff768aa0d56400a457585bc0175925a5a5510303da42 \
     --hash=sha256:694b793e84f766ba76a90ebdefc01d0a9a045dab0382bee70393da93712ad117
-    # via prefect
+    # via
+    #   -r requirements.txt
+    #   prefect
 pydocket==0.26.0 \
     --hash=sha256:63051711f56912dde81f794ddac6430cfe187e9b7f241f967fdfb78d00737734 \
     --hash=sha256:a168adbc5ed280ed5c557bb97e7162b8ac883baca395b205dfb14494cbf85231

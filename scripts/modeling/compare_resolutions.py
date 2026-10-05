@@ -27,6 +27,7 @@ from anomaly.evaluation.metrics import binary_auroc
 from anomaly.evaluation.scoring import score
 from anomaly.evaluation.splits import split_halves
 from anomaly.model.patchcore import PatchCore
+from anomaly.settings import settings
 from anomaly.utils import default_device
 
 
@@ -52,8 +53,8 @@ def main():
     parser.add_argument("--category", required=True)
     parser.add_argument("--bank", action="append", required=True, metavar="SIZE=PATH",
                         help="Candidate bank; the first one is the deployed baseline")
-    parser.add_argument("--dataset-root", type=Path, default=Path("data/mvtec-ad"))
-    parser.add_argument("--tracking-uri", default="sqlite:///mlflow.db")
+    parser.add_argument("--dataset-root", type=Path, default=settings.dataset_root)
+    parser.add_argument("--tracking-uri", default=settings.mlflow_tracking_uri)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--device", default=default_device())

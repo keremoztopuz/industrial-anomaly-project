@@ -4,7 +4,7 @@ from io import BytesIO
 
 from PIL import Image
 
-from api import config
+from api.config import settings
 
 
 class ImageTooLarge(ValueError):
@@ -12,12 +12,12 @@ class ImageTooLarge(ValueError):
 
 
 def decode_image(file):
-    contents = file.read(config.MAX_UPLOAD_BYTES + 1)
-    if len(contents) > config.MAX_UPLOAD_BYTES:
+    contents = file.read(settings.max_upload_bytes + 1)
+    if len(contents) > settings.max_upload_bytes:
         raise ImageTooLarge("Image file exceeds the byte limit")
     try:
         with Image.open(BytesIO(contents), formats=("PNG", "JPEG")) as image:
-            if image.width * image.height > config.MAX_IMAGE_PIXELS:
+            if image.width * image.height > settings.max_image_pixels:
                 raise ImageTooLarge("Image exceeds the pixel limit")
             return image.convert("RGB")
     except (Image.DecompressionBombError, Image.DecompressionBombWarning) as error:

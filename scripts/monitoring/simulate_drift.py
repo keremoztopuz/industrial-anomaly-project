@@ -20,6 +20,7 @@ import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 
 from anomaly.data.mvtec_dataset import MVTecDataset
+from anomaly.settings import settings
 
 SCENARIOS = ("normal", "dark", "blur", "defects")
 # Fixed targets, so the script can't be pointed at an arbitrary address.
@@ -66,7 +67,7 @@ def main():
     parser.add_argument("--category", default="cable")
     parser.add_argument("--count", type=int, default=50)
     parser.add_argument("--target", choices=sorted(TARGETS), default="live")
-    parser.add_argument("--dataset-root", type=Path, default=Path("data/mvtec-ad"))
+    parser.add_argument("--dataset-root", type=Path, default=settings.dataset_root)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 

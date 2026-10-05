@@ -3,10 +3,9 @@
 Reads the service's recent prediction lines from the Cloud Logging API, runs the same
 checks as scripts/monitoring/check_drift.py, and writes one JSON line with event "drift_check".
 The line has severity ERROR when a category is in alarm, so a log-based alert policy can
-email on it. Uses only the standard library and the metadata server's token, so it runs
-in the serving image with no extra packages or keys.
+email on it. Uses the metadata server's token, so it runs in the serving image with no keys.
 
-Environment:
+Settings (environment variables, see anomaly/settings.py):
   DRIFT_REFERENCE  path to drift_reference.json (the bucket is mounted at /models)
   SERVICE_NAME     Cloud Run service to read predictions from (default anomaly-api)
   LOOKBACK_DAYS    how far back to read logs (default 30)
@@ -15,12 +14,11 @@ Run: python -m anomaly.monitoring.drift_job
 """
 
 import json
-import os
 import urllib.request
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 from anomaly.monitoring.drift import check_all, overall_status
+from anomaly.settings import settings
 
 METADATA = "http://metadata.google.internal/computeMetadata/v1"
 LOGGING_API = "https://logging.googleapis.com/v2/entries:list"
@@ -78,13 +76,14 @@ def report(reference, predictions, results):
 
 
 def main():
-    reference = json.loads(Path(os.environ["DRIFT_REFERENCE"]).read_text(encoding="utf-8"))
-    service = os.environ.get("SERVICE_NAME", "anomaly-api")
-    since = datetime.now(timezone.utc) - timedelta(days=int(os.environ.get("LOOKBACK_DAYS", 30)))
+    if settings.drift_reference is None:
+        raise SystemExit("DRIFT_REFERENCE must point to drift_reference.json")
+    reference = json.loads(settings.drift_reference.read_text(encoding="utf-8"))
+    since = datetime.now(timezone.utc) - timedelta(days=settings.lookback_days)
     project = metadata("project/project-id")
     token = json.loads(metadata("instance/service-accounts/default/token"))["access_token"]
     predictions = fetch_predictions(
-        project, token, build_filter(service, reference["model_version"], since))
+        project, token, build_filter(settings.service_name, reference["model_version"], since))
     results = check_all(predictions, reference)
     print(json.dumps(report(reference, predictions, results)), flush=True)
 

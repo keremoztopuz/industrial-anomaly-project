@@ -71,10 +71,11 @@ anomaly/                      Core package: everything the model and the pipelin
   pipeline/run_pipeline.py    Prefect flow: fit, save, evaluate, write a manifest, log to MLflow
   monitoring/drift.py         PSI drift checks with calibrated cut-offs
   monitoring/drift_job.py     Daily drift check for Cloud Run Jobs (reads the Logging API)
+  settings.py                 Settings from environment variables and .env
   utils.py                    write_json and default_device
 api/                          FastAPI service, started with python -m api.main
   main.py                     App entry point and startup
-  config.py                   Environment settings and upload limits
+  config.py                   API settings: server and upload limits on top of the shared ones
   middleware.py               Request size limit
   routes/                     health.py, models.py, predictions.py: HTTP only
   schemas/                    Response contracts
@@ -184,7 +185,15 @@ Startup fails if `MODEL_DIR` contains no category banks. `/health` reports HTTP 
 
 All limits must be positive. The ASGI middleware bounds the whole body **before multipart parsing**, even without `Content-Length`. The image decoder separately reads at most `MAX_UPLOAD_BYTES + 1` bytes. The middleware buffers one bounded request body in RAM; account for concurrent requests when setting limits.
 
-`.env.example` contains sample settings without secrets. The application reads `os.environ` and **does not automatically load `.env`**. Export variables in your shell or pass an explicit `--env-file .env` to Docker. `.env` and `.env.*` are excluded from Git and Docker context; `.env.example` is intentionally allowed.
+### Configuration
+
+Every value that used to sit at the top of a script (model directory, model and bucket names, project, region, MLflow location, server port, upload limits) is a setting in `anomaly/settings.py` or `api/config.py`. Settings come from environment variables and, when the file exists, from a `.env` file in the working directory. A real environment variable wins over `.env`, and a command line flag wins over both. The environment variable names are the upper-case field names, for example `MODEL_DIR`, `MODEL_VERSION`, `PORT` or `GCP_PROJECT`.
+
+```sh
+cp .env.example .env   # every default is listed there with a comment
+```
+
+`.env` is ignored by Git and by the Docker build context, so a local file never ships. This project has no secrets (no API keys or passwords; Google Cloud access goes through IAM), so `.env` only holds ordinary configuration. A secret would belong in the platform's secret store (for Cloud Run, Secret Manager), never in the code or in Git. In the cloud, the values are set on the Cloud Run service and job: `deploy_model.py` sets `MODEL_DIR`, `MODEL_NAME` and `MODEL_VERSION`, and Cloud Run provides `PORT`.
 
 ```sh
 curl -X POST -F "upload_file=@bottle.png" \
