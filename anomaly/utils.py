@@ -1,7 +1,6 @@
 """Small helpers shared by the pipeline and the scripts."""
 
 import json
-from pathlib import Path
 
 import torch
 
@@ -15,10 +14,7 @@ def default_device():
 
 
 def write_json(path, data):
-    """Write JSON through a temporary file; only below the working directory."""
-    target = Path(path).resolve()
-    if not target.is_relative_to(Path.cwd().resolve()):
-        raise ValueError(f"Refusing to write {target} outside the working directory")
-    temporary = target.with_suffix(".json.tmp")
+    """Write JSON through a temporary file so a crash never leaves a half-written file."""
+    temporary = path.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    temporary.replace(target)
+    temporary.replace(path)

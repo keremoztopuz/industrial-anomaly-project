@@ -46,6 +46,10 @@ def main():
                         help="Registry version these banks are deployed as")
     parser.add_argument("--window", type=int, default=WINDOW)
     args = parser.parse_args()
+    model_dir = args.model_dir.resolve()
+    if not model_dir.is_relative_to(Path.cwd().resolve()):
+        parser.error("--model-dir must be inside the current directory")
+    args.model_dir = model_dir
 
     calibration = json.loads((args.model_dir / "thresholds.json").read_text(encoding="utf-8"))
     categories = {}

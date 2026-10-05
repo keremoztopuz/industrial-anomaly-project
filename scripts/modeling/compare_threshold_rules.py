@@ -92,6 +92,10 @@ def main():
     parser.add_argument("--write", action="store_true",
                         help="Write the winner's thresholds to thresholds.json")
     args = parser.parse_args()
+    model_dir = args.model_dir.resolve()
+    if not model_dir.is_relative_to(Path.cwd().resolve()):
+        parser.error("--model-dir must be inside the current directory")
+    args.model_dir = model_dir
 
     calibration = json.loads((args.model_dir / "thresholds.json").read_text(encoding="utf-8"))
     holdout = {category: values["holdout_scores"]

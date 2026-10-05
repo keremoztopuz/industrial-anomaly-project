@@ -68,6 +68,10 @@ def main():
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--device", default=default_device())
     args = parser.parse_args()
+    model_dir = args.model_dir.resolve()
+    if not model_dir.is_relative_to(Path.cwd().resolve()):
+        parser.error("--model-dir must be inside the current directory")
+    args.model_dir = model_dir
     categories = [args.category] if args.category else sorted(
         path.stem for path in args.model_dir.glob("*.pt"))
     if not categories:

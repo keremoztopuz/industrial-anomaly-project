@@ -219,6 +219,10 @@ def main():
     parser.add_argument("--device", default=default_device())
     parser.add_argument("--rescore", action="store_true", help="Ignore cached test_scores.json")
     args = parser.parse_args()
+    model_dir = args.model_dir.resolve()
+    if not model_dir.is_relative_to(Path.cwd().resolve()):
+        parser.error("--model-dir must be inside the current directory")
+    args.model_dir = model_dir
     output_dir = args.output_dir.resolve()
     if not output_dir.is_relative_to(Path.cwd().resolve()):
         parser.error("--output-dir must be inside the current directory")
