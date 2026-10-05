@@ -12,6 +12,10 @@ Decisions (2026-10-05):
   detection of a +0.5 standard deviation shift from 57% to 77%.
 - Each category is checked on its last 50 predictions; fewer means "insufficient data".
 - The alarm rate raises an alarm above 3 times the expected false positive rate.
+- Only the model's behavior (score PSI and alarm rate) decides the status. Brightness and
+  contrast are diagnostics: MVTec's test images differ from the training images by about
+  1.5 grey levels, invisible and harmless to the model, yet enough for PSI to alarm in 13
+  of 15 categories. They explain an alarm instead of raising one.
 """
 
 import numpy as np
@@ -72,6 +76,7 @@ def calibrate_psi_thresholds(reference, window=WINDOW, bins=BINS, trials=2000, s
 
 
 SIGNALS = ("anomaly_score", "brightness", "contrast")
+DIAGNOSTIC_SIGNALS = ("brightness", "contrast")
 SEVERITY = {"insufficient_data": 0, "stable": 1, "warning": 2, "alarm": 3}
 
 
@@ -85,16 +90,28 @@ def check_category(records, reference, window=WINDOW):
     if len(recent) < window:
         return {"status": "insufficient_data", "predictions": len(recent)}
     result = {"predictions": len(recent)}
-    statuses = []
     for signal in SIGNALS:
         value = psi(reference[signal]["reference"], [record[signal] for record in recent])
-        status = psi_status(value, reference[signal]["warn"], reference[signal]["alarm"])
         result[f"psi_{signal}"] = value
-        result[f"{signal}_status"] = status
-        statuses.append(status)
+        result[f"{signal}_status"] = psi_status(
+            value, reference[signal]["warn"], reference[signal]["alarm"])
     flags = [bool(record["is_anomaly"]) for record in recent]
     result["alarm_rate"] = sum(flags) / len(flags)
     result["alarm_rate_status"] = alarm_rate_status(flags)
-    statuses.append(result["alarm_rate_status"])
-    result["status"] = max(statuses, key=SEVERITY.get)
+    result["status"] = max((result["anomaly_score_status"], result["alarm_rate_status"]),
+                           key=SEVERITY.get)
+    result["diagnosis"] = diagnose(result)
     return result
+
+
+def diagnose(result):
+    """Say what most likely changed, using the diagnostic signals."""
+    if result["status"] == "stable":
+        return "no change in model behavior"
+    inputs_changed = [signal for signal in DIAGNOSTIC_SIGNALS
+                      if result[f"{signal}_status"] == "alarm"]
+    if inputs_changed:
+        return f"input images changed ({', '.join(inputs_changed)}): check the camera and lighting"
+    if result["alarm_rate_status"] == "alarm":
+        return "more parts flagged at unchanged lighting: possibly a real wave of defects"
+    return "scores shifted without a clear input change"

@@ -25,10 +25,11 @@ def reference_for(values):
 REFERENCE = {signal: reference_for(NORMAL) for signal in drift.SIGNALS}
 
 
-def records(n, shift=0.0, flagged=0, category="bottle"):
+def records(n, shift=0.0, flagged=0, category="bottle", brightness_shift=0.0):
     rng = np.random.default_rng(1)
     return [{"category": category, "anomaly_score": float(rng.normal(10 + shift, 1)),
-             "brightness": float(rng.normal(10, 1)), "contrast": float(rng.normal(10, 1)),
+             "brightness": float(rng.normal(10 + brightness_shift, 1)),
+             "contrast": float(rng.normal(10, 1)),
              "is_anomaly": i < flagged} for i in range(n)]
 
 
@@ -89,6 +90,19 @@ class CheckCategoryTests(unittest.TestCase):
         result = drift.check_category(records(50, flagged=20), REFERENCE)
         self.assertEqual(result["alarm_rate_status"], "alarm")
         self.assertAlmostEqual(result["alarm_rate"], 0.4)
+        self.assertIn("wave of defects", result["diagnosis"])
+
+    def test_input_change_alone_is_only_a_diagnostic(self):
+        result = drift.check_category(records(50, brightness_shift=3), REFERENCE)
+        self.assertEqual(result["brightness_status"], "alarm")
+        self.assertEqual(result["status"], "stable")
+        self.assertEqual(result["diagnosis"], "no change in model behavior")
+
+    def test_score_alarm_with_input_change_points_at_camera(self):
+        result = drift.check_category(records(50, shift=2, brightness_shift=3), REFERENCE)
+        self.assertEqual(result["status"], "alarm")
+        self.assertIn("brightness", result["diagnosis"])
+        self.assertIn("camera", result["diagnosis"])
 
 
 class CheckDriftScriptTests(unittest.TestCase):
@@ -125,6 +139,7 @@ class CheckDriftScriptTests(unittest.TestCase):
             self.assertEqual(run.data.tags["status/bottle"], "alarm")
             self.assertEqual(run.data.tags["status/pill"], "insufficient_data")
             self.assertIn("psi_anomaly_score/bottle", run.data.metrics)
+            self.assertIn("diagnosis/bottle", run.data.tags)
 
 
 class ReferencePathTests(unittest.TestCase):
