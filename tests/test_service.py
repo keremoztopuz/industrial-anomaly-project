@@ -21,8 +21,9 @@ from service import app, load_thresholds
 class FakeModel:
     """Stand-in for PatchCore: returns a fixed score and remembers its input."""
 
-    def __init__(self, score):
+    def __init__(self, score, image_size=256):
         self.score = score
+        self.image_size = image_size
         self.last_batch = None
 
     def predict(self, images):
@@ -111,6 +112,14 @@ class ServiceTests(unittest.TestCase):
         self.predict("bottle", image_bytes(size=(300, 200)))
         self.assertEqual(tuple(self.bottle.last_batch.shape), (1, 3, 256, 256))
         self.assertEqual(self.bottle.last_batch.dtype, torch.float32)
+
+    def test_each_model_gets_input_at_its_own_size(self):
+        pill = FakeModel(score=0.5, image_size=320)
+        client = make_client({"bottle": self.bottle, "pill": pill})
+        for category in ("bottle", "pill"):
+            client.post(f"/predict/{category}", files={"upload_file": ("a.png", image_bytes())})
+        self.assertEqual(tuple(self.bottle.last_batch.shape), (1, 3, 256, 256))
+        self.assertEqual(tuple(pill.last_batch.shape), (1, 3, 320, 320))
 
     def test_predict_converts_grayscale_and_rgba_to_rgb(self):
         for mode in ("L", "RGBA"):

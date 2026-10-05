@@ -183,5 +183,22 @@ class PatchCoreBorderTests(unittest.TestCase):
         self.assertEqual(old.border, 0)
 
 
+class PatchCoreImageSizeTests(unittest.TestCase):
+    def test_save_load_preserves_image_size_and_old_banks_are_256(self):
+        model = make_model(max_patches=4, projection_dim=4, image_size=320)
+        model.fit(loader(torch.randn(20, 4)))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bank.pt"
+            model.save(path)
+            state = torch.load(path, weights_only=True)
+            del state["image_size"]
+            old_path = Path(directory) / "old.pt"
+            torch.save(state, old_path)
+            with no_backbone():
+                loaded, old = PatchCore.load(path), PatchCore.load(old_path)
+        self.assertEqual(loaded.image_size, 320)
+        self.assertEqual(old.image_size, 256)
+
+
 if __name__ == "__main__":
     unittest.main()
