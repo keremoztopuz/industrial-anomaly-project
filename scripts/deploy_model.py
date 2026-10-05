@@ -43,6 +43,8 @@ def main():
         with tempfile.TemporaryDirectory() as directory:
             local = Path(mlflow.artifacts.download_artifacts(f"models:/{MODEL_NAME}@{args.alias}", dst_path=directory))
             files = [str(p) for p in sorted(local.glob("*.pt"))] + [str(local / "thresholds.json")]
+            if (local / "drift_reference.json").is_file():
+                files.append(str(local / "drift_reference.json"))
             gcloud("storage", "cp", *files, bucket_path, "--project", args.project)
 
     gcloud("run",

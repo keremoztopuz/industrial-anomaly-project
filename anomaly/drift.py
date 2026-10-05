@@ -19,6 +19,8 @@ Decisions (2026-10-05):
   them separates normal days from camera faults, and an automatic diagnosis was dropped.
 """
 
+from collections import defaultdict
+
 import numpy as np
 
 BINS = 10
@@ -106,3 +108,16 @@ def check_category(records, reference, window=WINDOW):
         result[f"{signal}_change"] = (
             float(np.mean([record[signal] for record in recent])) - baseline) / baseline
     return result
+
+
+def check_all(predictions, reference):
+    """Run check_category for every category in the reference; predictions newest first."""
+    by_category = defaultdict(list)
+    for record in predictions:
+        by_category[record["category"]].append(record)
+    return {category: check_category(by_category[category], values, reference["window"])
+            for category, values in reference["categories"].items()}
+
+
+def overall_status(results):
+    return max((result["status"] for result in results.values()), key=SEVERITY.get)

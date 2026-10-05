@@ -46,6 +46,7 @@ anomaly/
   mvtec_dataset.py        PyTorch dataset for the FiftyOne export of MVTec AD
   metrics.py              Exact image and pixel AUROC
   drift.py                PSI drift checks with calibrated cut-offs
+  drift_job.py            Scheduled drift check for Cloud Run Jobs (reads the Logging API)
   run_pipeline.py         Prefect flow: fit, save, evaluate, write a run manifest and log to MLflow
 api/service.py            FastAPI service that serves the saved banks
 Dockerfile                CPU-only image for the service
@@ -216,6 +217,8 @@ The textbook PSI cut-offs (0.1 warning, 0.25 alarm) assume thousands of samples.
 .venv/bin/python -m scripts.build_drift_reference   # once per deployed model version
 .venv/bin/python -m scripts.check_drift
 ```
+
+`anomaly/drift_job.py` runs the same check as a Cloud Run Job from the serving image. It reads the prediction logs through the Cloud Logging API with the job's own credentials and writes one `drift_check` log line, with severity `ERROR` when a category is in alarm, which a log-based alert policy can email. `drift_reference.json` lives in the model's version folder in the bucket next to the banks, and `deploy_model.py` uploads it with new versions.
 
 A simulation against the live service ([`drift_simulation.md`](reports/drift_simulation.md)) checked four scenarios on `cable`: a normal day only warns, while a failing lamp, an out-of-focus camera and a defect wave all raise an alarm.
 
