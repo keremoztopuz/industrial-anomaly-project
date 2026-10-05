@@ -218,7 +218,17 @@ The textbook PSI cut-offs (0.1 warning, 0.25 alarm) assume thousands of samples.
 .venv/bin/python -m scripts.check_drift
 ```
 
-`anomaly/drift_job.py` runs the same check as a Cloud Run Job from the serving image. It reads the prediction logs through the Cloud Logging API with the job's own credentials and writes one `drift_check` log line, with severity `ERROR` when a category is in alarm, which a log-based alert policy can email. `drift_reference.json` lives in the model's version folder in the bucket next to the banks, and `deploy_model.py` uploads it with new versions.
+`anomaly/drift_job.py` runs the same check as the `drift-check` Cloud Run Job, from the serving image, every day at 08:00 Istanbul time (Cloud Scheduler). It reads the prediction logs through the Cloud Logging API with the job's own credentials and writes one `drift_check` log line, with severity `ERROR` when a category is in alarm. `drift_reference.json` lives in the model's version folder in the bucket next to the banks. `deploy_model.py` uploads it with new versions and points the job at the new version's reference and the service's current image.
+
+Cloud Monitoring emails on five alert policies:
+
+| Alert | Fires when |
+| --- | --- |
+| drift alarm | the daily `drift_check` line has severity `ERROR` (the message names the categories) |
+| drift job failed | the job logs any other error, so a broken monitor doesn't stay silent |
+| server errors | more than 3 responses with a 5xx code in 5 minutes |
+| slow responses | 95th percentile latency above 5 s for 15 minutes (a single ~30 s cold start doesn't count) |
+| memory | container memory above 90% of 2 GiB for 5 minutes |
 
 A simulation against the live service ([`drift_simulation.md`](reports/drift_simulation.md)) checked four scenarios on `cable`: a normal day only warns, while a failing lamp, an out-of-focus camera and a defect wave all raise an alarm.
 

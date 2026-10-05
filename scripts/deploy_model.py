@@ -30,6 +30,8 @@ def main():
     parser.add_argument("--project", default="industrial-anomaly-510523")
     parser.add_argument("--region", default="europe-west1")
     parser.add_argument("--service", default="anomaly-api")
+    parser.add_argument("--drift-job", default="drift-check",
+                        help="Cloud Run Job that checks drift; empty to skip")
     args = parser.parse_args()
     mlflow.set_tracking_uri(args.tracking_uri)
     client = MlflowClient(args.tracking_uri)
@@ -56,6 +58,16 @@ def main():
            )
 
     print(f"{args.service} now serves {MODEL_NAME} v{version.version} (@{args.alias})")
+
+    if args.drift_job:
+        # Keep the drift check on the same image and the new version's reference.
+        image = gcloud("run", "services", "describe", args.service, "--project", args.project,
+                       "--region", args.region,
+                       "--format", "value(spec.template.spec.containers[0].image)").stdout.strip()
+        gcloud("run", "jobs", "update", args.drift_job, "--project", args.project,
+               "--region", args.region, "--image", image,
+               "--update-env-vars", f"DRIFT_REFERENCE={container_path}/drift_reference.json")
+        print(f"{args.drift_job} now checks v{version.version} with {image}")
 
 
 if __name__ == "__main__":
