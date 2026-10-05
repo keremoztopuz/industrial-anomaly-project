@@ -16,5 +16,7 @@ def default_device():
 def write_json(path, data):
     """Write JSON through a temporary file so a crash never leaves a half-written file."""
     temporary = path.with_suffix(".json.tmp")
-    temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    with temporary.open("w", encoding="utf-8") as file:
+        json.dump(data, file, indent=2, sort_keys=True)
+        file.write("\n")
     temporary.replace(path)
