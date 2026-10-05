@@ -9,7 +9,7 @@ yüksek çözünürlük `pill`'i iyileştirir mi?
 
 ## Protokol
 
-Sonuçlara bakmadan önce [`scripts/compare_resolutions.py`](../scripts/compare_resolutions.py)
+Sonuçlara bakmadan önce [`scripts/modeling/compare_resolutions.py`](../scripts/modeling/compare_resolutions.py)
 içine yazıldı:
 
 - Adaylar: canlıdaki 256 bankası ve aynı ayarlarla (coreset 16.384, `neighborhood=3`,
@@ -64,7 +64,7 @@ kusurlarda (`faulty_imprint` ve `crack`).
 
 ## Canlıya alma ve geri alma provası
 
-Her adım: MLflow'da `production` etiketini taşı, `python -m scripts.deploy_model` çalıştır.
+Her adım: MLflow'da `production` etiketini taşı, `python -m scripts.registry.deploy_model` çalıştır.
 
 | Adım | Süre | Sonuç |
 | --- | ---: | --- |

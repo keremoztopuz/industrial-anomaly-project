@@ -97,5 +97,5 @@ koşuda 15 banka dosyası hedef kapasitededir. AUROC'ların tamamı sonlu ve
 ve artifact dosyaları Git'e eklenmedi. Bir koşuyu yeniden üretmek için örnek:
 
 ```sh
-.venv/bin/python run_pipeline.py --dataset-root data/mvtec-ad --output-root artifacts/bank-size-sweep/coreset-16384 --image-size 256 --batch-size 8 --projection-dim 256 --seed 42 --device mps --selection coreset --max-patches 16384
+.venv/bin/python -m anomaly.pipeline.run_pipeline --dataset-root data/mvtec-ad --output-root artifacts/bank-size-sweep/coreset-16384 --image-size 256 --batch-size 8 --projection-dim 256 --seed 42 --device mps --selection coreset --max-patches 16384
 ```

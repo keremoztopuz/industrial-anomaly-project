@@ -2,13 +2,13 @@
 
 ## Soru
 
-Canlı servisin tahmin günlüğünü okuyan drift kontrolü (`scripts/check_drift.py`), gerçek
+Canlı servisin tahmin günlüğünü okuyan drift kontrolü (`scripts/monitoring/check_drift.py`), gerçek
 bir değişikliği yakalıyor ve değişiklik yokken sessiz kalıyor mu?
 
 ## Yöntem
 
 Servise gerçek bir hat bağlı olmadığı için hattaki olaylar taklit edildi
-(`scripts/simulate_drift.py`). Her senaryoda canlı servise `cable` kategorisinden 50 test
+(`scripts/monitoring/simulate_drift.py`). Her senaryoda canlı servise `cable` kategorisinden 50 test
 görüntüsü gönderildi, ardından drift kontrolü çalıştırıldı. `cable`, test kümesinde 50'den
 fazla sağlam görüntüsü olan iki kategoriden biri ve senaryolar için yeterli kusurlu
 görüntüsü var. Eğitim görüntüleri kullanılmadı, çünkü canlı banka onları içerdiği için

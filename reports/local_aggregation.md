@@ -104,5 +104,5 @@ karşılaştırılmamalıdır. 2.048 patch'lik denemeler başka bir koşuyla ayn
 model dosyaları Git'e eklenmedi. Yeniden üretmek için:
 
 ```sh
-.venv/bin/python run_pipeline.py --dataset-root data/mvtec-ad --output-root artifacts/local-aggregation-16384/coreset --image-size 256 --batch-size 8 --projection-dim 256 --seed 42 --device mps --max-patches 16384 --selection coreset --neighborhood 3
+.venv/bin/python -m anomaly.pipeline.run_pipeline --dataset-root data/mvtec-ad --output-root artifacts/local-aggregation-16384/coreset --image-size 256 --batch-size 8 --projection-dim 256 --seed 42 --device mps --max-patches 16384 --selection coreset --neighborhood 3
 ```

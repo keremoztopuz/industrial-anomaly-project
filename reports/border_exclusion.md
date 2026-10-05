@@ -116,5 +116,5 @@ değişmişti; Python dosyaları commit ile aynıydı.
 model dosyaları Git'e eklenmedi. Yeniden üretmek için:
 
 ```sh
-.venv/bin/python run_pipeline.py --dataset-root data/mvtec-ad --output-root artifacts/border-exclusion/coreset-16384-n3-b2 --image-size 256 --batch-size 8 --projection-dim 256 --seed 42 --device mps --max-patches 16384 --selection coreset --neighborhood 3 --border 2
+.venv/bin/python -m anomaly.pipeline.run_pipeline --dataset-root data/mvtec-ad --output-root artifacts/border-exclusion/coreset-16384-n3-b2 --image-size 256 --batch-size 8 --projection-dim 256 --seed 42 --device mps --max-patches 16384 --selection coreset --neighborhood 3 --border 2
 ```
