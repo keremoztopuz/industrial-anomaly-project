@@ -17,6 +17,25 @@ All 15 MVTec AD categories, single seed (42), 256 × 256 images, Apple M4 (MPS).
 | + 3 × 3 neighborhood aggregation | 0.9299 | 0.9767 |
 | + exclude 2 border patch rings from image scores | **0.9770** | **0.9767** |
 
+### Defective or not: the deployed thresholds
+
+Each category's `is_anomaly` threshold is chosen from held-out normal training images, without looking at the test set. On all 1,725 test images it catches 84.6% of defective parts and flags 6.9% of normal ones, but the balance varies a lot by category ([`threshold_calibration.md`](reports/threshold_calibration.md)).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="reports/figures/threshold_confusion_dark.svg">
+  <img alt="Confusion matrix over all test images: 435 normal and 1,064 defective parts classified correctly, 32 false alarms and 194 missed defects" src="reports/figures/threshold_confusion_light.svg">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="reports/figures/threshold_rates_dark.svg">
+  <img alt="Recall and false positive rate per category" src="reports/figures/threshold_rates_light.svg">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="reports/figures/threshold_scores_dark.svg">
+  <img alt="Test score distributions per category with each category's threshold" src="reports/figures/threshold_scores_light.svg">
+</picture>
+
 Per-category tables, run manifests and caveats are in [`reports/`](reports/) (written in Turkish):
 
 | Report | Question |
