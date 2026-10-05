@@ -29,8 +29,10 @@ def binary_auroc(scores, labels):
     ))
     true_positive = true_positive[ends]
     false_positive = ends + 1 - true_positive
-    tpr = torch.cat((torch.zeros(1, dtype=torch.float64), true_positive.to(torch.float64) / positives))
-    fpr = torch.cat((torch.zeros(1, dtype=torch.float64), false_positive.to(torch.float64) / negatives))
+    tpr = torch.cat((torch.zeros(1, dtype=torch.float64),
+                    true_positive.to(torch.float64) / positives))
+    fpr = torch.cat((torch.zeros(1, dtype=torch.float64),
+                    false_positive.to(torch.float64) / negatives))
     return float(torch.trapezoid(tpr, fpr))
 
 

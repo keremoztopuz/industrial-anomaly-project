@@ -83,20 +83,23 @@ def run_pipeline(dataset_root, output_root, image_size=256, batch_size=8,
         })
         results = {
             category: run_category(category, dataset_root, output_root, image_size,
-                                batch_size, device, max_patches, projection_dim, seed,
-                                selection, neighborhood, border)
+                                   batch_size, device, max_patches, projection_dim, seed,
+                                   selection, neighborhood, border)
             for category in categories
         }
 
         for category, metrics in results.items():
             mlflow.log_metric(f"image_auroc/{category}", metrics["image_auroc"])
             mlflow.log_metric(f"pixel_auroc/{category}", metrics["pixel_auroc"])
-        mlflow.log_metric("image_auroc_mean", sum(m["image_auroc"] for m in results.values()) / len(results))
-        mlflow.log_metric("pixel_auroc_mean", sum(m["pixel_auroc"] for m in results.values()) / len(results))
+        mlflow.log_metric("image_auroc_mean", sum(m["image_auroc"]
+                          for m in results.values()) / len(results))
+        mlflow.log_metric("pixel_auroc_mean", sum(m["pixel_auroc"]
+                          for m in results.values()) / len(results))
 
         summary = output_root / "metrics.json"
         temporary = summary.with_suffix(".json.tmp")
-        temporary.write_text(json.dumps(results, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        temporary.write_text(json.dumps(results, indent=2, sort_keys=True) +
+                             "\n", encoding="utf-8")
         temporary.replace(summary)
 
         source_root = Path(__file__).resolve().parents[1]
@@ -109,7 +112,8 @@ def run_pipeline(dataset_root, output_root, image_size=256, batch_size=8,
             git_dirty = None
             if git_commit:
                 status = subprocess.run(
-                    ["git", "-C", str(source_root), "status", "--porcelain", "--untracked-files=no"],
+                    ["git", "-C", str(source_root), "status", "--porcelain",
+                     "--untracked-files=no"],
                     capture_output=True, text=True, check=False,
                 )
                 if status.returncode == 0:
@@ -138,7 +142,8 @@ def run_pipeline(dataset_root, output_root, image_size=256, batch_size=8,
         }
         destination = output_root / "manifest.json"
         temporary = destination.with_suffix(".json.tmp")
-        temporary.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        temporary.write_text(json.dumps(manifest, indent=2,
+                             sort_keys=True) + "\n", encoding="utf-8")
         temporary.replace(destination)
 
         mlflow.set_tags({

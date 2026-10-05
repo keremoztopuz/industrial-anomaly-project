@@ -6,3 +6,6 @@ artifacts/
 mlflow.db
 mlruns/
 mlartifacts/
+.env
+.env.*
+!.env.example

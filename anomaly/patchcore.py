@@ -22,6 +22,8 @@ class PatchCore:
 
     def __init__(self, device="cpu", max_patches=2048, projection_dim=256, seed=42,
                  selection="random", neighborhood=1, border=0, backbone=None, image_size=256):
+        if type(image_size) is not int or image_size <= 0:
+            raise ValueError("image_size must be a positive integer")
         if max_patches < 1 or projection_dim < 1:
             raise ValueError("max_patches and projection_dim must be positive")
         if selection not in ("random", "coreset"):
@@ -44,7 +46,7 @@ class PatchCore:
             backbone = create_feature_extractor(
                 model, return_nodes={"layer2": "layer2", "layer3": "layer3"}
             ).to(self.device).eval()
-    
+
         for parameter in backbone.parameters():
             parameter.requires_grad_(False)
         self.backbone = backbone
@@ -64,7 +66,8 @@ class PatchCore:
                 for name, value in features.items()
             }
         shallow = features["layer2"]
-        deep = F.interpolate(features["layer3"], size=shallow.shape[-2:], mode="bilinear", align_corners=False)
+        deep = F.interpolate(features["layer3"], size=shallow.shape[-2:],
+                             mode="bilinear", align_corners=False)
         patches = torch.cat((shallow, deep), dim=1).permute(0, 2, 3, 1)
         return patches @ self.projection
 
@@ -120,7 +123,8 @@ class PatchCore:
         inner = distances[..., self.border:patch_height - self.border,
                           self.border:patch_width - self.border]
         scores = inner.flatten(1).amax(dim=1)
-        maps = F.interpolate(distances, size=images.shape[-2:], mode="bilinear", align_corners=False)
+        maps = F.interpolate(
+            distances, size=images.shape[-2:], mode="bilinear", align_corners=False)
         return scores.cpu(), maps[:, 0].cpu()
 
     def save(self, path):

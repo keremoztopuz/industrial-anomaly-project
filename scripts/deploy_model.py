@@ -4,6 +4,9 @@ Run from the repository root: python -m scripts.deploy_model
 """
 
 import argparse
+import base64
+import hashlib
+import json
 import shutil
 import subprocess
 import tempfile
@@ -12,7 +15,10 @@ from pathlib import Path
 import mlflow
 from mlflow.tracking import MlflowClient
 
+from api.services import load_thresholds
+
 MODEL_NAME = "patchcore-mvtec"
+
 
 def gcloud(*args, check=True):
     """Run a gcloud command; the full path keeps SonarCloud happy."""
@@ -20,6 +26,56 @@ def gcloud(*args, check=True):
     if executable is None:
         raise RuntimeError("gcloud not found on PATH")
     return subprocess.run([executable, *args], check=check, capture_output=True, text=True)
+
+
+def deployment_files(local, version, drift_enabled):
+    """Validate the serving bundle before any upload or service mutation."""
+    banks = sorted(local.glob("*.pt"))
+    if not banks or any(not path.is_file() or path.stat().st_size == 0 for path in banks):
+        raise ValueError("Model bundle must contain nonempty category banks (*.pt)")
+    threshold_path = local / "thresholds.json"
+    if not threshold_path.is_file():
+        raise ValueError("Model bundle is missing thresholds.json")
+    if set(load_thresholds(threshold_path)) != {path.stem for path in banks}:
+        raise ValueError("Threshold categories must match the model banks")
+    files = banks + [threshold_path]
+    reference_path = local / "drift_reference.json"
+    if drift_enabled or reference_path.exists():
+        if not reference_path.is_file():
+            raise ValueError("Drift job requires drift_reference.json")
+        reference = json.loads(reference_path.read_text(encoding="utf-8"))
+        if str(reference.get("model_version")) != str(version):
+            raise ValueError(
+                "drift_reference.json model_version does not match the resolved version")
+        if set(reference.get("categories", {})) != {path.stem for path in banks}:
+            raise ValueError("Drift reference categories must match the model banks")
+        if type(reference.get("window")) is not int or reference["window"] <= 0:
+            raise ValueError("Drift reference window must be a positive integer")
+        files.append(reference_path)
+    return files
+
+
+def file_identity(path):
+    """Match GCS's size and base64 MD5 metadata without loading a bank into RAM."""
+    with path.open("rb") as file:
+        digest = hashlib.file_digest(file, "md5").digest()
+    return path.stat().st_size, base64.b64encode(digest).decode("ascii")
+
+
+def remote_files(bucket_path, project):
+    """Empty successful listing means absent; command/auth/network errors propagate."""
+    listing = gcloud("storage", "objects", "list", bucket_path + "**",
+                     "--raw", "--format=json", "--project", project)
+    objects = json.loads(listing.stdout)
+    prefix = bucket_path.split("/", 3)[3]
+    result = {}
+    for name in sorted({item["name"] for item in objects}):
+        # Describe the live object, even when a versioned bucket lists older generations.
+        metadata = json.loads(gcloud(
+            "storage", "objects", "describe", bucket_path + name.removeprefix(prefix),
+            "--raw", "--format=json", "--project", project).stdout)
+        result[name.removeprefix(prefix)] = (int(metadata["size"]), metadata.get("md5Hash"))
+    return result
 
 
 def main():
@@ -36,28 +92,35 @@ def main():
     mlflow.set_tracking_uri(args.tracking_uri)
     client = MlflowClient(args.tracking_uri)
 
-    version = client.get_model_version_by_alias(MODEL_NAME, args.alias)
-    bucket_path = f"gs://{args.bucket}/{MODEL_NAME}/v{version.version}/"
-    container_path = f"/models/{MODEL_NAME}/v{version.version}"
+    version = str(client.get_model_version_by_alias(MODEL_NAME, args.alias).version)
+    bucket_path = f"gs://{args.bucket}/{MODEL_NAME}/v{version}/"
+    container_path = f"/models/{MODEL_NAME}/v{version}"
 
-    listing = gcloud("storage", "ls", bucket_path, "--project", args.project, check=False)
-    if listing.returncode != 0:
-        with tempfile.TemporaryDirectory() as directory:
-            local = Path(mlflow.artifacts.download_artifacts(f"models:/{MODEL_NAME}@{args.alias}", dst_path=directory))
-            files = [str(p) for p in sorted(local.glob("*.pt"))] + [str(local / "thresholds.json")]
-            if (local / "drift_reference.json").is_file():
-                files.append(str(local / "drift_reference.json"))
-            gcloud("storage", "cp", *files, bucket_path, "--project", args.project)
+    with tempfile.TemporaryDirectory() as directory:
+        local = Path(mlflow.artifacts.download_artifacts(
+            f"models:/{MODEL_NAME}/{version}", dst_path=directory))
+        files = deployment_files(local, version, bool(args.drift_job))
+        expected = {path.name: file_identity(path) for path in files}
+        remote = remote_files(bucket_path, args.project)
+        if not remote:
+            # Creation precondition prevents a concurrent deployment overwriting files.
+            gcloud("storage", "cp", *(str(path) for path in files), bucket_path,
+                   "--if-generation-match=0", "--project", args.project)
+            remote = remote_files(bucket_path, args.project)
+        if remote != expected:
+            raise ValueError(f"Incomplete or different artifacts at {bucket_path}; "
+                             "refusing to update the service or drift job")
 
     gcloud("run",
            "services",
            "update", args.service,
            "--project", args.project,
            "--region", args.region,
-           "--update-env-vars", f"MODEL_DIR={container_path},MODEL_NAME={MODEL_NAME},MODEL_VERSION={version.version}",
+           "--update-env-vars",
+           f"MODEL_DIR={container_path},MODEL_NAME={MODEL_NAME},MODEL_VERSION={version}",
            )
 
-    print(f"{args.service} now serves {MODEL_NAME} v{version.version} (@{args.alias})")
+    print(f"{args.service} now serves {MODEL_NAME} v{version} (@{args.alias})")
 
     if args.drift_job:
         # Keep the drift check on the same image and the new version's reference.
@@ -67,7 +130,7 @@ def main():
         gcloud("run", "jobs", "update", args.drift_job, "--project", args.project,
                "--region", args.region, "--image", image,
                "--update-env-vars", f"DRIFT_REFERENCE={container_path}/drift_reference.json")
-        print(f"{args.drift_job} now checks v{version.version} with {image}")
+        print(f"{args.drift_job} now checks v{version} with {image}")
 
 
 if __name__ == "__main__":

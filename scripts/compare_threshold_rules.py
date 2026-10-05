@@ -145,7 +145,8 @@ def main():
         final = summary_metrics("final", per_category, pooled)
         for key, value in final.items():
             client.log_metric(runs[name], key, value)
-        print(f"final half, {name}: balanced accuracy {final['final_balanced_accuracy_mean']:.4f}, "
+        print(f"final half, {name}: balanced accuracy "
+              f"{final['final_balanced_accuracy_mean']:.4f}, "
               f"recall {final['final_recall']:.3f}, "
               f"false positives {final['final_false_positive_rate']:.3f}")
     client.set_tag(runs[winner], "selected", "true")

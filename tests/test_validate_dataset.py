@@ -1,12 +1,10 @@
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.validate_dataset import validate_dataset
 
@@ -21,8 +19,12 @@ class ValidateDatasetTests(unittest.TestCase):
             Image.new("RGB", (8, 6)).save(root / "images/anomaly.png")
             Image.new("L", (8, 6)).save(root / "masks/anomaly.png")
             samples = [
-                {"filepath": "images/normal.png", "category": {"label": "thing"}, "defect": {"label": "good"}},
-                {"filepath": "images/anomaly.png", "category": {"label": "thing"}, "defect": {"label": "crack"}, "defect_mask": {"mask_path": "masks/anomaly.png"}},
+                {"filepath": "images/normal.png",
+                 "category": {"label": "thing"},
+                 "defect": {"label": "good"}},
+                {"filepath": "images/anomaly.png", "category": {"label": "thing"},
+                    "defect": {"label": "crack"},
+                 "defect_mask": {"mask_path": "masks/anomaly.png"}},
             ]
             (root / "samples.json").write_text(json.dumps({"samples": samples}), encoding="utf-8")
 
@@ -36,10 +38,14 @@ class ValidateDatasetTests(unittest.TestCase):
             (root / "corrupt.png").write_bytes(b"not an image")
             Image.new("L", (4, 6)).save(root / "wrong-size.png")
             samples = [
-                {"filepath": "corrupt.png", "category": {"label": "a"}, "defect": {"label": "good"}},
-                {"filepath": "valid.png", "category": {"label": "b"}, "defect": {"label": "crack"}},
-                {"filepath": "valid.png", "category": {"label": "c"}, "defect": {"label": "crack"}, "defect_mask": {"mask_path": "missing.png"}},
-                {"filepath": "valid.png", "category": {"label": "d"}, "defect": {"label": "crack"}, "defect_mask": {"mask_path": "wrong-size.png"}},
+                {"filepath": "corrupt.png", "category": {"label": "a"},
+                 "defect": {"label": "good"}},
+                {"filepath": "valid.png", "category": {"label": "b"},
+                 "defect": {"label": "crack"}},
+                {"filepath": "valid.png", "category": {"label": "c"}, "defect": {
+                    "label": "crack"}, "defect_mask": {"mask_path": "missing.png"}},
+                {"filepath": "valid.png", "category": {"label": "d"}, "defect": {
+                    "label": "crack"}, "defect_mask": {"mask_path": "wrong-size.png"}},
             ]
             (root / "samples.json").write_text(json.dumps({"samples": samples}), encoding="utf-8")
 

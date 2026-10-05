@@ -38,8 +38,9 @@ def log_to_mlflow(tracking_uri, reference, results, fetched, label=None):
                      else client.create_experiment(EXPERIMENT))
     overall = overall_status(results)
     tags = {"status": overall, **({"label": label} if label else {})}
-    run = client.create_run(experiment_id, run_name=label or f"drift-check-v{reference['model_version']}",
-                            tags=tags)
+    run = client.create_run(
+        experiment_id, run_name=label or f"drift-check-v{reference['model_version']}",
+        tags=tags)
     run_id = run.info.run_id
     for key, value in {"model_version": reference["model_version"],
                        "window": reference["window"], "predictions_fetched": fetched}.items():
@@ -47,10 +48,14 @@ def log_to_mlflow(tracking_uri, reference, results, fetched, label=None):
     for category, result in results.items():
         client.set_tag(run_id, f"status/{category}", result["status"])
         for key in ["psi_anomaly_score", "alarm_rate"] + [f"{s}_change" for s in INPUT_SIGNALS]:
-            if key in result:
+            if result.get(key) is not None:
                 client.log_metric(run_id, f"{key}/{category}", result[key])
     client.set_terminated(run_id)
     return overall
+
+
+def percent(value):
+    return "n/a" if value is None else f"{value:+.1%}"
 
 
 def main():
@@ -64,7 +69,8 @@ def main():
     parser.add_argument("--limit", type=int, default=5000)
     parser.add_argument("--tracking-uri", default="sqlite:///mlflow.db")
     parser.add_argument("--no-mlflow", action="store_true")
-    parser.add_argument("--label", help="Name for this check in MLflow, e.g. a simulation scenario")
+    parser.add_argument(
+        "--label", help="Name for this check in MLflow, e.g. a simulation scenario")
     args = parser.parse_args()
 
     reference_path = args.reference.resolve()
@@ -76,10 +82,11 @@ def main():
     results = check_all(predictions, reference)
     for category, result in results.items():
         details = "" if result["status"] == "insufficient_data" else (
-            f"  score {result['anomaly_score_status']}, alarm rate {result['alarm_rate']:.0%}"
-            f" | brightness {result['brightness_change']:+.1%}, "
-            f"contrast {result['contrast_change']:+.1%}")
-        print(f"{category:11} {result['status']:17} {result['predictions']:3d} predictions{details}")
+            f"  score {result['anomaly_score_status']}, alarm rate {percent(result['alarm_rate'])}"
+            f" | brightness {percent(result['brightness_change'])}, "
+            f"contrast {percent(result['contrast_change'])}")
+        print(
+            f"{category:11} {result['status']:17} {result['predictions']:3d} predictions{details}")
     overall = overall_status(results)
     if not args.no_mlflow:
         log_to_mlflow(args.tracking_uri, reference, results, len(predictions), args.label)
