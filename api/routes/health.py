@@ -13,7 +13,9 @@ def read_root():
     return {"status": "API is running"}
 
 
-@router.get("/health", response_model=StatusResponse, summary="Check HTTP liveness")
+@router.get(
+    "/health", response_model=StatusResponse, summary="Check HTTP liveness"
+)
 def check_liveness():
     """Report process liveness; models are validated during startup."""
     return {"status": "healthy"}

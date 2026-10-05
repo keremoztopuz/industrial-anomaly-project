@@ -9,4 +9,6 @@ def gcloud(*args, check=True):
     executable = shutil.which("gcloud")
     if executable is None:
         raise RuntimeError("gcloud not found on PATH")
-    return subprocess.run([executable, *args], check=check, capture_output=True, text=True)
+    return subprocess.run(
+        [executable, *args], check=check, capture_output=True, text=True
+    )

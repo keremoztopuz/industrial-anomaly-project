@@ -1,18 +1,21 @@
 """Compare is_anomaly threshold rules on a validation half of the test set.
 
 Protocol, fixed before looking at any result:
-- Every rule turns a category's held-out normal training scores into a threshold.
-  Candidates: "max" (the current rule) and "median + k * MAD" for k in 2..6, where
-  MAD is scaled by 1.4826 so it matches the standard deviation of normal data.
+- Every rule turns a category's held-out normal training scores into a
+  threshold. Candidates: "max" (the current rule) and "median + k * MAD" for k
+  in 2..6, where MAD is scaled by 1.4826 so it matches the standard deviation
+  of normal data.
 - Each category's test images are split in half, separately for normal and
   defective images (seed 42). Rules compete on the validation half only.
 - The winner has the highest mean balanced accuracy over the 15 categories.
-  Ties go to the more conservative rule: larger k, with "max" the most conservative.
+  Ties go to the more conservative rule: larger k, with "max" the most
+  conservative.
 - The winner and the current rule are then scored once on the final half.
 
 Every candidate is logged as a run in the MLflow experiment "threshold-rules".
 
-Run from the repository root: python -m scripts.modeling.compare_threshold_rules
+Run from the repository root:
+python -m scripts.modeling.compare_threshold_rules
 """
 
 import argparse
@@ -44,16 +47,28 @@ def mad_rule(scores, k):
 
 
 def candidates():
-    """Return (name, k, rule) with k=inf for max, the most conservative candidate."""
+    """Return (name, k, rule) with k=inf for max, the most conservative
+    candidate."""
     rules = [("max", math.inf, max_rule)]
-    rules += [(f"median+{k}mad", k, lambda scores, k=k: mad_rule(scores, k)) for k in K_VALUES]
+    rules += [
+        (f"median+{k}mad", k, lambda scores, k=k: mad_rule(scores, k))
+        for k in K_VALUES
+    ]
     return rules
 
 
 def evaluate(thresholds, scores, splits, part):
-    """Score every category's chosen half; return per-category results and pooled counts."""
-    per_category, pooled = {}, {"true_positive": 0, "false_positive": 0,
-                                "true_negative": 0, "false_negative": 0}
+    """Score every category's chosen half; return per-category results and
+    pooled counts."""
+    per_category, pooled = (
+        {},
+        {
+            "true_positive": 0,
+            "false_positive": 0,
+            "true_negative": 0,
+            "false_negative": 0,
+        },
+    )
     for category, threshold in thresholds.items():
         indices = splits[category][part]
         values = torch.tensor([scores[category]["scores"][i] for i in indices])
@@ -67,14 +82,21 @@ def evaluate(thresholds, scores, splits, part):
 
 
 def summary_metrics(prefix, per_category, pooled):
-    metrics = {f"{prefix}_balanced_accuracy_mean": statistics.mean(
-        result["balanced_accuracy"] for result in per_category.values())}
+    metrics = {
+        f"{prefix}_balanced_accuracy_mean": statistics.mean(
+            result["balanced_accuracy"] for result in per_category.values()
+        )
+    }
     positives = pooled["true_positive"] + pooled["false_negative"]
     negatives = pooled["false_positive"] + pooled["true_negative"]
     metrics[f"{prefix}_recall"] = pooled["true_positive"] / positives
-    metrics[f"{prefix}_false_positive_rate"] = pooled["false_positive"] / negatives
+    metrics[f"{prefix}_false_positive_rate"] = (
+        pooled["false_positive"] / negatives
+    )
     for category, result in per_category.items():
-        metrics[f"{prefix}_balanced_accuracy/{category}"] = result["balanced_accuracy"]
+        metrics[f"{prefix}_balanced_accuracy/{category}"] = result[
+            "balanced_accuracy"
+        ]
     return metrics
 
 
@@ -84,12 +106,18 @@ def pick_winner(results):
 
 
 def load_inputs(model_dir, seed):
-    """Read the calibration, the held-out scores and the test scores, and split every
-    category's test images into validation and final halves."""
-    calibration = json.loads((model_dir / "thresholds.json").read_text(encoding="utf-8"))
-    holdout = {category: values["holdout_scores"]
-               for category, values in calibration["categories"].items()}
-    scores = json.loads((model_dir / "test_scores.json").read_text(encoding="utf-8"))
+    """Read the calibration, the held-out scores and the test scores, and split
+    every category's test images into validation and final halves."""
+    calibration = json.loads(
+        (model_dir / "thresholds.json").read_text(encoding="utf-8")
+    )
+    holdout = {
+        category: values["holdout_scores"]
+        for category, values in calibration["categories"].items()
+    }
+    scores = json.loads(
+        (model_dir / "test_scores.json").read_text(encoding="utf-8")
+    )
     splits = {}
     for category, data in scores.items():
         validation, final = split_halves(data["labels"], seed)
@@ -102,8 +130,11 @@ def main():
     parser.add_argument("--model-dir", type=Path, default=settings.model_dir)
     parser.add_argument("--tracking-uri", default=settings.mlflow_tracking_uri)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--write", action="store_true",
-                        help="Write the winner's thresholds to thresholds.json")
+    parser.add_argument(
+        "--write",
+        action="store_true",
+        help="Write the winner's thresholds to thresholds.json",
+    )
     args = parser.parse_args()
     model_dir = args.model_dir.resolve()
     if not model_dir.is_relative_to(Path.cwd().resolve()):
@@ -113,25 +144,39 @@ def main():
 
     client = MlflowClient(args.tracking_uri)
     experiment = client.get_experiment_by_name(THRESHOLD_RULES_EXPERIMENT)
-    experiment_id = (experiment.experiment_id if experiment
-                     else client.create_experiment(THRESHOLD_RULES_EXPERIMENT))
+    experiment_id = (
+        experiment.experiment_id
+        if experiment
+        else client.create_experiment(THRESHOLD_RULES_EXPERIMENT)
+    )
     rules, runs, results = {}, {}, []
     for name, k, rule in candidates():
-        thresholds = {category: rule(values) for category, values in holdout.items()}
-        per_category, pooled = evaluate(thresholds, scores, splits, "validation")
+        thresholds = {
+            category: rule(values) for category, values in holdout.items()
+        }
+        per_category, pooled = evaluate(
+            thresholds, scores, splits, "validation"
+        )
         metrics = summary_metrics("val", per_category, pooled)
         run = client.create_run(experiment_id, run_name=name)
         runs[name] = run.info.run_id
         rules[name] = thresholds
-        for key, value in {"rule": name.split("+")[0], "k": k, "split_seed": args.seed,
-                           "calibration_method": calibration["method"]}.items():
+        for key, value in {
+            "rule": name.split("+")[0],
+            "k": k,
+            "split_seed": args.seed,
+            "calibration_method": calibration["method"],
+        }.items():
             client.log_param(run.info.run_id, key, value)
         for key, value in metrics.items():
             client.log_metric(run.info.run_id, key, value)
         results.append((name, k, metrics["val_balanced_accuracy_mean"]))
-        print(f"{name}: validation balanced accuracy {metrics['val_balanced_accuracy_mean']:.4f}, "
-              f"recall {metrics['val_recall']:.3f}, false positives "
-              f"{metrics['val_false_positive_rate']:.3f}")
+        print(
+            f"{name}: validation balanced accuracy "
+            f"{metrics['val_balanced_accuracy_mean']:.4f}, "
+            f"recall {metrics['val_recall']:.3f}, false positives "
+            f"{metrics['val_false_positive_rate']:.3f}"
+        )
 
     winner = pick_winner(results)
     for name in dict.fromkeys((winner, "max")):
@@ -139,10 +184,12 @@ def main():
         final = summary_metrics("final", per_category, pooled)
         for key, value in final.items():
             client.log_metric(runs[name], key, value)
-        print(f"final half, {name}: balanced accuracy "
-              f"{final['final_balanced_accuracy_mean']:.4f}, "
-              f"recall {final['final_recall']:.3f}, "
-              f"false positives {final['final_false_positive_rate']:.3f}")
+        print(
+            f"final half, {name}: balanced accuracy "
+            f"{final['final_balanced_accuracy_mean']:.4f}, "
+            f"recall {final['final_recall']:.3f}, "
+            f"false positives {final['final_false_positive_rate']:.3f}"
+        )
     client.set_tag(runs[winner], "selected", "true")
     for run_id in runs.values():
         client.set_terminated(run_id)
@@ -152,8 +199,10 @@ def main():
         for category, values in calibration["categories"].items():
             values["threshold"] = rules[winner][category]
         calibration["method"] = winner
-        calibration["selected_by"] = (f"mean validation balanced accuracy on half of the "
-                                      f"test set, split seed {args.seed}")
+        calibration["selected_by"] = (
+            f"mean validation balanced accuracy on half of the "
+            f"test set, split seed {args.seed}"
+        )
         write_json(model_dir / "thresholds.json", calibration)
         print(f"wrote {winner} thresholds to {model_dir / 'thresholds.json'}")
 

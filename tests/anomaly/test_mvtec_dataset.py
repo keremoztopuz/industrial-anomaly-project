@@ -26,18 +26,32 @@ class MVTecDatasetTests(unittest.TestCase):
         image.save(self.root / "anomaly.png")
         mask.save(self.root / "mask.png")
         self.samples = [
-            {"category": {"label": "cable"}, "split": "train",
-             "defect": {"label": "good"}, "filepath": "normal.png"},
-            {"category": {"label": "cable"}, "split": "test",
-             "defect": {"label": "good"}, "filepath": "normal.png"},
-            {"category": {"label": "cable"}, "split": "test",
-             "defect": {"label": "cut"}, "filepath": "anomaly.png",
-             "defect_mask": {"mask_path": "mask.png"}},
+            {
+                "category": {"label": "cable"},
+                "split": "train",
+                "defect": {"label": "good"},
+                "filepath": "normal.png",
+            },
+            {
+                "category": {"label": "cable"},
+                "split": "test",
+                "defect": {"label": "good"},
+                "filepath": "normal.png",
+            },
+            {
+                "category": {"label": "cable"},
+                "split": "test",
+                "defect": {"label": "cut"},
+                "filepath": "anomaly.png",
+                "defect_mask": {"mask_path": "mask.png"},
+            },
         ]
         self.write_samples()
 
     def write_samples(self):
-        (self.root / "samples.json").write_text(json.dumps({"samples": self.samples}))
+        (self.root / "samples.json").write_text(
+            json.dumps({"samples": self.samples})
+        )
 
     def test_normal_rgb_normalization_and_train_filter(self):
         anomaly = {**self.samples[2], "split": "train"}
@@ -49,9 +63,12 @@ class MVTecDatasetTests(unittest.TestCase):
         item = dataset[0]
         self.assertEqual(item["image"].shape, (3, 8, 8))
         self.assertEqual(item["image"].dtype, torch.float32)
-        expected = (torch.ones(3) -
-                    torch.tensor([0.485, 0.456, 0.406])) / torch.tensor([0.229, 0.224, 0.225])
-        torch.testing.assert_close(item["image"], expected[:, None, None].expand(3, 8, 8))
+        expected = (
+            torch.ones(3) - torch.tensor([0.485, 0.456, 0.406])
+        ) / torch.tensor([0.229, 0.224, 0.225])
+        torch.testing.assert_close(
+            item["image"], expected[:, None, None].expand(3, 8, 8)
+        )
         self.assertEqual(item["mask"].dtype, torch.bool)
         self.assertFalse(item["mask"].any())
         self.assertEqual(item["label"], 0)
@@ -60,7 +77,9 @@ class MVTecDatasetTests(unittest.TestCase):
         dataset = MVTecDataset(self.root, "cable", "test", image_size=8)
         item = dataset[1]
         self.assertEqual(item["label"], 1)
-        self.assertEqual(item["path"], str((self.root / "anomaly.png").resolve()))
+        self.assertEqual(
+            item["path"], str((self.root / "anomaly.png").resolve())
+        )
         expected_mask = torch.zeros((1, 8, 8), dtype=torch.bool)
         expected_mask[:, :, :4] = True
         self.assertTrue(torch.equal(item["mask"], expected_mask))
@@ -73,8 +92,11 @@ class MVTecDatasetTests(unittest.TestCase):
         self.assertEqual(batch["label"].tolist(), [0, 1])
 
     def test_invalid_configuration_and_paths(self):
-        for category, split, size in [("unknown", "train", 8),
-                                      ("cable", "val", 8), ("cable", "train", 0)]:
+        for category, split, size in [
+            ("unknown", "train", 8),
+            ("cable", "val", 8),
+            ("cable", "train", 0),
+        ]:
             with self.subTest(category=category, split=split, size=size):
                 with self.assertRaises(ValueError):
                     MVTecDataset(self.root, category, split, size)

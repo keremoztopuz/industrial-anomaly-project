@@ -1,11 +1,12 @@
-"""Send a scenario of test images to the live service to exercise the drift checks.
+"""Send a scenario of test images to the live service to exercise the drift
+checks.
 
 Scenarios, all on one category's test images:
 - normal:  50 defect-free images, unchanged. The checks should stay stable.
 - dark:    the same images at 60% brightness, like a failing lamp.
 - blur:    the same images with a Gaussian blur, like a camera out of focus.
-- defects: 40 defective and 10 defect-free images at normal lighting, a defect wave.
-           The alarm rate should fire while brightness and contrast stay stable.
+- defects: 40 defective and 10 defect-free images at normal lighting, a defect
+  wave. The alarm rate should fire while brightness and contrast stay stable.
 
 Run from the repository root, then wait about 30 seconds for the logs and run
 check_drift: python -m scripts.monitoring.simulate_drift --scenario dark
@@ -24,7 +25,10 @@ from anomaly.settings import settings
 
 SCENARIOS = ("normal", "dark", "blur", "defects")
 # Fixed targets, so the script can't be pointed at an arbitrary address.
-TARGETS = {"live": "https://anomaly-api-sw4p2ayosa-ew.a.run.app", "local": "http://127.0.0.1:8000"}
+TARGETS = {
+    "live": "https://anomaly-api-sw4p2ayosa-ew.a.run.app",
+    "local": "http://127.0.0.1:8000",
+}
 DARK_FACTOR = 0.6
 BLUR_RADIUS = 4
 
@@ -38,12 +42,14 @@ def pick_samples(dataset, scenario, count, seed):
     defective = [defective[i] for i in rng.permutation(len(defective))]
     if scenario == "defects":
         defect_count = round(count * 0.8)
-        chosen = defective[:defect_count] + good[:count - defect_count]
+        chosen = defective[:defect_count] + good[: count - defect_count]
         chosen = [chosen[i] for i in rng.permutation(len(chosen))]
     else:
         chosen = good[:count]
     if len(chosen) < count:
-        raise ValueError(f"only {len(chosen)} suitable test images for scenario {scenario}")
+        raise ValueError(
+            f"only {len(chosen)} suitable test images for scenario {scenario}"
+        )
     return chosen
 
 
@@ -67,7 +73,9 @@ def main():
     parser.add_argument("--category", default="cable")
     parser.add_argument("--count", type=int, default=50)
     parser.add_argument("--target", choices=sorted(TARGETS), default="live")
-    parser.add_argument("--dataset-root", type=Path, default=settings.dataset_root)
+    parser.add_argument(
+        "--dataset-root", type=Path, default=settings.dataset_root
+    )
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -78,14 +86,21 @@ def main():
         for index, sample in enumerate(samples, start=1):
             with Image.open(dataset.root / sample["filepath"]) as source:
                 image = apply_scenario(source.convert("RGB"), args.scenario)
-            response = client.post(f"/predict/{args.category}",
-                                   files={"upload_file": ("image.png", encode_png(image))})
+            response = client.post(
+                f"/predict/{args.category}",
+                files={"upload_file": ("image.png", encode_png(image))},
+            )
             response.raise_for_status()
             flagged += bool(response.json()["is_anomaly"])
             if index % 10 == 0:
-                print(f"{index}/{len(samples)} sent, {flagged} flagged", flush=True)
-    print(f"{args.scenario}: sent {len(samples)} {args.category} images, "
-          f"{flagged} flagged as defective")
+                print(
+                    f"{index}/{len(samples)} sent, {flagged} flagged",
+                    flush=True,
+                )
+    print(
+        f"{args.scenario}: sent {len(samples)} {args.category} images, "
+        f"{flagged} flagged as defective"
+    )
 
 
 if __name__ == "__main__":

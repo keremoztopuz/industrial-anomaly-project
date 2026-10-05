@@ -28,15 +28,18 @@ class PatchCoreSelectionTests(unittest.TestCase):
 
     def test_random_bank_is_bounded_subset(self):
         features = torch.randn(50, 4)
-        model = make_model(max_patches=8, projection_dim=4).fit(loader(features))
+        model = make_model(max_patches=8, projection_dim=4).fit(
+            loader(features)
+        )
         self.assertEqual(model.memory_bank.shape, (8, 4))
         for row in model.memory_bank:
             self.assertTrue((features == row).all(dim=1).any())
 
     def test_coreset_bank_is_bounded_unique_subset(self):
         features = torch.randn(50, 4)
-        model = make_model(max_patches=8, projection_dim=4,
-                           selection="coreset").fit(loader(features))
+        model = make_model(
+            max_patches=8, projection_dim=4, selection="coreset"
+        ).fit(loader(features))
         self.assertEqual(model.memory_bank.shape, (8, 4))
         self.assertEqual(len(torch.unique(model.memory_bank, dim=0)), 8)
         for row in model.memory_bank:
@@ -44,16 +47,18 @@ class PatchCoreSelectionTests(unittest.TestCase):
 
     def test_coreset_covers_separate_clusters(self):
         features = torch.tensor([[0.0], [0.1], [0.2], [10.0], [10.1], [10.2]])
-        model = make_model(max_patches=2, projection_dim=1,
-                           selection="coreset").fit(loader(features))
+        model = make_model(
+            max_patches=2, projection_dim=1, selection="coreset"
+        ).fit(loader(features))
         bank = sorted(model.memory_bank.flatten().tolist())
         self.assertLess(bank[0], 1)
         self.assertGreater(bank[1], 9)
 
     def test_small_training_set_keeps_all_patches(self):
         features = torch.randn(3, 4)
-        model = make_model(max_patches=8, projection_dim=4,
-                           selection="coreset").fit(loader(features))
+        model = make_model(
+            max_patches=8, projection_dim=4, selection="coreset"
+        ).fit(loader(features))
         self.assertEqual(len(model.memory_bank), 3)
 
     def test_fit_rejects_anomalous_images(self):
@@ -62,7 +67,9 @@ class PatchCoreSelectionTests(unittest.TestCase):
             make_model(max_patches=2, projection_dim=4).fit([batch])
 
     def test_save_load_preserves_selection(self):
-        model = make_model(max_patches=4, projection_dim=4, selection="coreset")
+        model = make_model(
+            max_patches=4, projection_dim=4, selection="coreset"
+        )
         model.fit(loader(torch.randn(20, 4)))
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "bank.pt"
@@ -103,11 +110,15 @@ class PatchCoreNeighborhoodTests(unittest.TestCase):
         shallow, deep = torch.randn(1, 512, 4, 4), torch.randn(1, 1024, 2, 2)
         features = {"layer2": shallow, "layer3": deep}
         averaged = self.embed(3, features)
-        expected = self.embed(1, {
-            name: torch.nn.functional.avg_pool2d(value, 3, stride=1, padding=1,
-                                                 count_include_pad=False)
-            for name, value in features.items()
-        })
+        expected = self.embed(
+            1,
+            {
+                name: torch.nn.functional.avg_pool2d(
+                    value, 3, stride=1, padding=1, count_include_pad=False
+                )
+                for name, value in features.items()
+            },
+        )
         self.assertEqual(averaged.shape, (1, 4, 4, 4))
         self.assertTrue(torch.allclose(averaged, expected, atol=1e-6))
         self.assertFalse(torch.allclose(averaged, self.embed(1, features)))

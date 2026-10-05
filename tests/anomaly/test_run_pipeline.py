@@ -15,10 +15,12 @@ RESULTS = {
 
 
 def tracking_uri_in(root):
-    """Use a temporary store and artifact root so tests leave nothing in the repo."""
+    """Use a temporary store and artifact root so tests leave nothing in the
+    repo."""
     uri = f"sqlite:///{root / 'mlflow.db'}"
-    MlflowClient(uri).create_experiment("patchcore-mvtec",
-                                        artifact_location=(root / "artifacts").as_uri())
+    MlflowClient(uri).create_experiment(
+        "patchcore-mvtec", artifact_location=(root / "artifacts").as_uri()
+    )
     return uri
 
 
@@ -28,17 +30,33 @@ class RunPipelineMlflowTests(unittest.TestCase):
             root = Path(directory)
             dataset_root = root / "dataset"
             dataset_root.mkdir()
-            (dataset_root / "samples.json").write_text(json.dumps({"samples": [
-                {"category": {"label": category}} for category in RESULTS
-            ]}), encoding="utf-8")
+            (dataset_root / "samples.json").write_text(
+                json.dumps(
+                    {
+                        "samples": [
+                            {"category": {"label": category}}
+                            for category in RESULTS
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
             tracking_uri = tracking_uri_in(root)
 
-            with mock.patch.object(run_pipeline, "run_category",
-                                   side_effect=lambda category, *args: RESULTS[category]):
+            with mock.patch.object(
+                run_pipeline,
+                "run_category",
+                side_effect=lambda category, *args: RESULTS[category],
+            ):
                 returned = run_pipeline.run_pipeline.fn(
-                    dataset_root, root / "smoke-run", max_patches=16384,
-                    selection="coreset", neighborhood=3, border=2,
-                    tracking_uri=tracking_uri)
+                    dataset_root,
+                    root / "smoke-run",
+                    max_patches=16384,
+                    selection="coreset",
+                    neighborhood=3,
+                    border=2,
+                    tracking_uri=tracking_uri,
+                )
 
             self.assertEqual(returned, RESULTS)
             client = MlflowClient(tracking_uri)
@@ -53,23 +71,39 @@ class RunPipelineMlflowTests(unittest.TestCase):
             self.assertAlmostEqual(run.data.metrics["image_auroc_mean"], 0.9)
             self.assertAlmostEqual(run.data.metrics["pixel_auroc_mean"], 0.8)
             self.assertEqual(
-                len(client.get_metric_history(run.info.run_id, "image_auroc_mean")), 1)
+                len(
+                    client.get_metric_history(
+                        run.info.run_id, "image_auroc_mean"
+                    )
+                ),
+                1,
+            )
             self.assertIn("samples_json_sha256", run.data.tags)
             self.assertEqual(
-                sorted(item.path for item in client.list_artifacts(run.info.run_id)),
-                ["manifest.json", "metrics.json"])
+                sorted(
+                    item.path
+                    for item in client.list_artifacts(run.info.run_id)
+                ),
+                ["manifest.json", "metrics.json"],
+            )
 
     def test_failed_run_is_marked_failed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "samples.json").write_text(json.dumps({"samples": [
-                {"category": {"label": "bottle"}}]}), encoding="utf-8")
+            (root / "samples.json").write_text(
+                json.dumps({"samples": [{"category": {"label": "bottle"}}]}),
+                encoding="utf-8",
+            )
             tracking_uri = tracking_uri_in(root)
-            with mock.patch.object(run_pipeline, "run_category",
-                                   side_effect=RuntimeError("out of memory")):
+            with mock.patch.object(
+                run_pipeline,
+                "run_category",
+                side_effect=RuntimeError("out of memory"),
+            ):
                 with self.assertRaises(RuntimeError):
-                    run_pipeline.run_pipeline.fn(root, root / "broken",
-                                                 tracking_uri=tracking_uri)
+                    run_pipeline.run_pipeline.fn(
+                        root, root / "broken", tracking_uri=tracking_uri
+                    )
             client = MlflowClient(tracking_uri)
             experiment = client.get_experiment_by_name("patchcore-mvtec")
             [run] = client.search_runs([experiment.experiment_id])

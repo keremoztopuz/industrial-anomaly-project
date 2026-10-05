@@ -10,19 +10,32 @@ from mlflow.tracking import MlflowClient
 
 from scripts.registry import backfill_mlflow
 
-MANIFEST = {"created_at_utc": "2026-09-30T12:00:00+00:00", "git_commit": "abc123",
-            "git_dirty": False, "samples_json_sha256": "f00d", "image_size": 256,
-            "batch_size": 8, "device": "mps", "max_patches": 8192, "projection_dim": 256,
-            "seed": 42, "selection": "coreset"}
-METRICS = {"bottle": {"image_auroc": 1.0, "pixel_auroc": 0.9},
-           "grid": {"image_auroc": 0.6, "pixel_auroc": 0.8}}
+MANIFEST = {
+    "created_at_utc": "2026-09-30T12:00:00+00:00",
+    "git_commit": "abc123",
+    "git_dirty": False,
+    "samples_json_sha256": "f00d",
+    "image_size": 256,
+    "batch_size": 8,
+    "device": "mps",
+    "max_patches": 8192,
+    "projection_dim": 256,
+    "seed": 42,
+    "selection": "coreset",
+}
+METRICS = {
+    "bottle": {"image_auroc": 1.0, "pixel_auroc": 0.9},
+    "grid": {"image_auroc": 0.6, "pixel_auroc": 0.8},
+}
 
 
 def write_run(folder, metrics, manifest=None, log=False):
     folder.mkdir(parents=True)
     (folder / "metrics.json").write_text(json.dumps(metrics), encoding="utf-8")
     if manifest is not None:
-        (folder / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        (folder / "manifest.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
     if log:
         (folder / "run.log").write_text("done\n", encoding="utf-8")
 
@@ -32,27 +45,45 @@ class BackfillTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.artifacts = self.root / "artifacts"
-        write_run(self.artifacts / "bank-size-sweep" / "coreset-8192", METRICS, MANIFEST, log=True)
-        write_run(self.artifacts / "full", {"bottle": {"image_auroc": 0.8, "pixel_auroc": 0.9}})
+        write_run(
+            self.artifacts / "bank-size-sweep" / "coreset-8192",
+            METRICS,
+            MANIFEST,
+            log=True,
+        )
+        write_run(
+            self.artifacts / "full",
+            {"bottle": {"image_auroc": 0.8, "pixel_auroc": 0.9}},
+        )
         write_run(self.artifacts / "run-manifest-smoke", METRICS, MANIFEST)
         self.uri = f"sqlite:///{self.root / 'mlflow.db'}"
         self.client = MlflowClient(self.uri)
         self.experiment_id = self.client.create_experiment(
-            "patchcore-mvtec", artifact_location=(self.root / "store").as_uri())
+            "patchcore-mvtec", artifact_location=(self.root / "store").as_uri()
+        )
 
     def tearDown(self):
         self.temporary.cleanup()
 
     def backfill(self, *extra):
-        argv = ["backfill_mlflow", "--artifacts-root", str(self.artifacts),
-                "--tracking-uri", self.uri, *extra]
+        argv = [
+            "backfill_mlflow",
+            "--artifacts-root",
+            str(self.artifacts),
+            "--tracking-uri",
+            self.uri,
+            *extra,
+        ]
         output = StringIO()
         with mock.patch("sys.argv", argv), redirect_stdout(output):
             backfill_mlflow.main()
         return output.getvalue()
 
     def runs(self):
-        return {run.info.run_name: run for run in self.client.search_runs([self.experiment_id])}
+        return {
+            run.info.run_name: run
+            for run in self.client.search_runs([self.experiment_id])
+        }
 
     def test_old_manifest_gets_defaults_metrics_tags_and_files(self):
         self.backfill()
@@ -63,7 +94,9 @@ class BackfillTests(unittest.TestCase):
         self.assertEqual(run.data.params["selection"], "coreset")
         self.assertEqual(run.data.params["neighborhood"], "1")
         self.assertEqual(run.data.params["border"], "0")
-        self.assertEqual(run.data.tags["defaulted_params"], "neighborhood,border")
+        self.assertEqual(
+            run.data.tags["defaulted_params"], "neighborhood,border"
+        )
         self.assertEqual(run.data.tags["git_commit"], "abc123")
         self.assertEqual(run.data.tags["report"], "reports/bank_size_sweep.md")
         self.assertEqual(run.data.tags["num_categories"], "2")
@@ -71,10 +104,20 @@ class BackfillTests(unittest.TestCase):
         self.assertAlmostEqual(run.data.metrics["image_auroc_mean"], 0.8)
         self.assertAlmostEqual(run.data.metrics["pixel_auroc_mean"], 0.85)
         self.assertEqual(
-            len(self.client.get_metric_history(run.info.run_id, "image_auroc_mean")), 1)
+            len(
+                self.client.get_metric_history(
+                    run.info.run_id, "image_auroc_mean"
+                )
+            ),
+            1,
+        )
         self.assertEqual(
-            sorted(item.path for item in self.client.list_artifacts(run.info.run_id)),
-            ["manifest.json", "metrics.json", "run.log"])
+            sorted(
+                item.path
+                for item in self.client.list_artifacts(run.info.run_id)
+            ),
+            ["manifest.json", "metrics.json", "run.log"],
+        )
 
     def test_baseline_without_manifest_uses_report_settings(self):
         self.backfill()
@@ -97,8 +140,11 @@ class BackfillTests(unittest.TestCase):
 
     def test_skips_folder_already_logged_by_run_pipeline(self):
         logged = self.client.create_run(self.experiment_id, run_name="full")
-        self.client.log_param(logged.info.run_id, "output_root",
-                              str((self.artifacts / "full").resolve()))
+        self.client.log_param(
+            logged.info.run_id,
+            "output_root",
+            str((self.artifacts / "full").resolve()),
+        )
         self.backfill()
         self.assertEqual(len(self.client.search_runs([self.experiment_id])), 2)
 

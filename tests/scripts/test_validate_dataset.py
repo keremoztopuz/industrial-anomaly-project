@@ -19,17 +19,27 @@ class ValidateDatasetTests(unittest.TestCase):
             Image.new("RGB", (8, 6)).save(root / "images/anomaly.png")
             Image.new("L", (8, 6)).save(root / "masks/anomaly.png")
             samples = [
-                {"filepath": "images/normal.png",
-                 "category": {"label": "thing"},
-                 "defect": {"label": "good"}},
-                {"filepath": "images/anomaly.png", "category": {"label": "thing"},
+                {
+                    "filepath": "images/normal.png",
+                    "category": {"label": "thing"},
+                    "defect": {"label": "good"},
+                },
+                {
+                    "filepath": "images/anomaly.png",
+                    "category": {"label": "thing"},
                     "defect": {"label": "crack"},
-                 "defect_mask": {"mask_path": "masks/anomaly.png"}},
+                    "defect_mask": {"mask_path": "masks/anomaly.png"},
+                },
             ]
-            (root / "samples.json").write_text(json.dumps({"samples": samples}), encoding="utf-8")
+            (root / "samples.json").write_text(
+                json.dumps({"samples": samples}), encoding="utf-8"
+            )
 
             total, categories, errors = validate_dataset(root)
-            self.assertEqual((total, categories["thing"]["sizes"][(8, 6)], errors), (2, 2, []))
+            self.assertEqual(
+                (total, categories["thing"]["sizes"][(8, 6)], errors),
+                (2, 2, []),
+            )
 
     def test_reports_corrupt_image_missing_mask_and_mismatch(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -38,22 +48,40 @@ class ValidateDatasetTests(unittest.TestCase):
             (root / "corrupt.png").write_bytes(b"not an image")
             Image.new("L", (4, 6)).save(root / "wrong-size.png")
             samples = [
-                {"filepath": "corrupt.png", "category": {"label": "a"},
-                 "defect": {"label": "good"}},
-                {"filepath": "valid.png", "category": {"label": "b"},
-                 "defect": {"label": "crack"}},
-                {"filepath": "valid.png", "category": {"label": "c"}, "defect": {
-                    "label": "crack"}, "defect_mask": {"mask_path": "missing.png"}},
-                {"filepath": "valid.png", "category": {"label": "d"}, "defect": {
-                    "label": "crack"}, "defect_mask": {"mask_path": "wrong-size.png"}},
+                {
+                    "filepath": "corrupt.png",
+                    "category": {"label": "a"},
+                    "defect": {"label": "good"},
+                },
+                {
+                    "filepath": "valid.png",
+                    "category": {"label": "b"},
+                    "defect": {"label": "crack"},
+                },
+                {
+                    "filepath": "valid.png",
+                    "category": {"label": "c"},
+                    "defect": {"label": "crack"},
+                    "defect_mask": {"mask_path": "missing.png"},
+                },
+                {
+                    "filepath": "valid.png",
+                    "category": {"label": "d"},
+                    "defect": {"label": "crack"},
+                    "defect_mask": {"mask_path": "wrong-size.png"},
+                },
             ]
-            (root / "samples.json").write_text(json.dumps({"samples": samples}), encoding="utf-8")
+            (root / "samples.json").write_text(
+                json.dumps({"samples": samples}), encoding="utf-8"
+            )
 
             _, _, errors = validate_dataset(root)
             self.assertEqual(len(errors), 4)
             self.assertTrue(any("corrupt image" in error for error in errors))
             self.assertTrue(any("missing mask" in error for error in errors))
-            self.assertTrue(any("missing mask reference" in error for error in errors))
+            self.assertTrue(
+                any("missing mask reference" in error for error in errors)
+            )
             self.assertTrue(any("size mismatch" in error for error in errors))
 
 

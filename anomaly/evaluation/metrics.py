@@ -7,7 +7,9 @@ import torch
 
 def binary_auroc(scores, labels):
     """Return exact AUROC, averaging tied scores through the ROC curve."""
-    scores = torch.as_tensor(scores, dtype=torch.float64).detach().cpu().flatten()
+    scores = (
+        torch.as_tensor(scores, dtype=torch.float64).detach().cpu().flatten()
+    )
     labels = torch.as_tensor(labels).detach().cpu().flatten()
     if scores.numel() == 0 or scores.shape != labels.shape:
         raise ValueError("scores and labels must have the same nonempty shape")
@@ -23,16 +25,26 @@ def binary_auroc(scores, labels):
 
     sorted_scores, order = torch.sort(scores, descending=True)
     true_positive = labels[order].to(torch.int64).cumsum(0)
-    ends = torch.cat((
-        torch.nonzero(sorted_scores[1:] != sorted_scores[:-1]).flatten(),
-        torch.tensor([scores.numel() - 1]),
-    ))
+    ends = torch.cat(
+        (
+            torch.nonzero(sorted_scores[1:] != sorted_scores[:-1]).flatten(),
+            torch.tensor([scores.numel() - 1]),
+        )
+    )
     true_positive = true_positive[ends]
     false_positive = ends + 1 - true_positive
-    tpr = torch.cat((torch.zeros(1, dtype=torch.float64),
-                    true_positive.to(torch.float64) / positives))
-    fpr = torch.cat((torch.zeros(1, dtype=torch.float64),
-                    false_positive.to(torch.float64) / negatives))
+    tpr = torch.cat(
+        (
+            torch.zeros(1, dtype=torch.float64),
+            true_positive.to(torch.float64) / positives,
+        )
+    )
+    fpr = torch.cat(
+        (
+            torch.zeros(1, dtype=torch.float64),
+            false_positive.to(torch.float64) / negatives,
+        )
+    )
     return float(torch.trapezoid(tpr, fpr))
 
 
@@ -46,10 +58,16 @@ def evaluate_category(image_scores, anomaly_maps, labels, masks):
         anomaly_maps = anomaly_maps[:, 0]
     if masks.ndim == 4 and masks.shape[1] == 1:
         masks = masks[:, 0]
-    if (image_scores.ndim != 1 or labels.shape != image_scores.shape
-            or anomaly_maps.ndim != 3 or masks.shape != anomaly_maps.shape
-            or anomaly_maps.shape[0] != labels.numel()):
-        raise ValueError("Expected scores/labels [N] and matching maps/masks [N,H,W]")
+    if (
+        image_scores.ndim != 1
+        or labels.shape != image_scores.shape
+        or anomaly_maps.ndim != 3
+        or masks.shape != anomaly_maps.shape
+        or anomaly_maps.shape[0] != labels.numel()
+    ):
+        raise ValueError(
+            "Expected scores/labels [N] and matching maps/masks [N,H,W]"
+        )
     return {
         "image_auroc": binary_auroc(image_scores, labels),
         "pixel_auroc": binary_auroc(anomaly_maps, masks),

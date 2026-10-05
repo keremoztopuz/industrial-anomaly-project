@@ -11,5 +11,7 @@ def load_models(directory):
         models[path.stem] = model
         print(f"Loaded model {path.stem} from {path}")
     if not models:
-        raise RuntimeError(f"No category models (*.pt) found in MODEL_DIR={directory}")
+        raise RuntimeError(
+            f"No category models (*.pt) found in MODEL_DIR={directory}"
+        )
     return models

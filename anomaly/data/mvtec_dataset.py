@@ -12,15 +12,24 @@ from anomaly.settings import settings
 
 
 def build_transform(image_size):
-    return transforms.Compose([
-        transforms.Resize((image_size, image_size), InterpolationMode.BILINEAR, antialias=True),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
+    return transforms.Compose(
+        [
+            transforms.Resize(
+                (image_size, image_size),
+                InterpolationMode.BILINEAR,
+                antialias=True,
+            ),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+            ),
+        ]
+    )
 
 
 class MVTecDataset(Dataset):
-    """Load one MVTec category from FiftyOne metadata, without changing source files."""
+    """Load one MVTec category from FiftyOne metadata, without changing source
+    files."""
 
     def __init__(self, root, category, split, image_size=256):
         if split not in ("train", "test"):
@@ -34,7 +43,8 @@ class MVTecDataset(Dataset):
         if category not in {sample["category"]["label"] for sample in samples}:
             raise ValueError(f"Unknown category: {category}")
         self.samples = [
-            sample for sample in samples
+            sample
+            for sample in samples
             if sample["category"]["label"] == category
             and sample["split"] == split
             and (split != "train" or sample["defect"]["label"] == "good")
@@ -67,37 +77,71 @@ class MVTecDataset(Dataset):
             mask_path = self._path(mask_reference)
             with Image.open(mask_path) as source:
                 if source.size != original_size:
-                    raise ValueError(f"Mask/image size mismatch: {mask_path} and {path}")
-                mask = F.pil_to_tensor(F.resize(
-                    source.convert("L"),
-                    (self.image_size, self.image_size),
-                    interpolation=InterpolationMode.NEAREST,
-                )) > 0
+                    raise ValueError(
+                        f"Mask/image size mismatch: {mask_path} and {path}"
+                    )
+                mask = (
+                    F.pil_to_tensor(
+                        F.resize(
+                            source.convert("L"),
+                            (self.image_size, self.image_size),
+                            interpolation=InterpolationMode.NEAREST,
+                        )
+                    )
+                    > 0
+                )
         else:
-            mask = torch.zeros((1, self.image_size, self.image_size), dtype=torch.bool)
-        return {"image": image, "mask": mask, "label": label, "path": str(path)}
+            mask = torch.zeros(
+                (1, self.image_size, self.image_size), dtype=torch.bool
+            )
+        return {
+            "image": image,
+            "mask": mask,
+            "label": label,
+            "path": str(path),
+        }
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Check the first preprocessed batch of each MVTec category.")
-    parser.add_argument("--dataset-root", type=Path,
-                        default=settings.dataset_root)
+        description=(
+            "Check the first preprocessed batch of each MVTec category."
+        ),
+    )
+    parser.add_argument(
+        "--dataset-root", type=Path, default=settings.dataset_root
+    )
     parser.add_argument("--category", help="Omit to check all categories")
     parser.add_argument("--split", choices=("train", "test"), default="train")
     parser.add_argument("--image-size", type=int, default=256)
     args = parser.parse_args()
     try:
-        with (args.dataset_root / "samples.json").open(encoding="utf-8") as file:
+        with (args.dataset_root / "samples.json").open(
+            encoding="utf-8"
+        ) as file:
             samples = json.load(file)["samples"]
-        categories = [args.category] if args.category else sorted(
-            {s["category"]["label"] for s in samples})
+        categories = (
+            [args.category]
+            if args.category
+            else sorted({s["category"]["label"] for s in samples})
+        )
         for category in categories:
-            dataset = MVTecDataset(args.dataset_root, category, args.split, args.image_size)
-            batch = next(iter(DataLoader(dataset, batch_size=8, num_workers=0, shuffle=False)))
-            print(f"{category}/{args.split}: {len(dataset)} samples | "
-                  f"images {tuple(batch['image'].shape)} {batch['image'].dtype} | "
-                  f"masks {tuple(batch['mask'].shape)} {batch['mask'].dtype}")
+            dataset = MVTecDataset(
+                args.dataset_root, category, args.split, args.image_size
+            )
+            batch = next(
+                iter(
+                    DataLoader(
+                        dataset, batch_size=8, num_workers=0, shuffle=False
+                    )
+                )
+            )
+            print(
+                f"{category}/{args.split}: {len(dataset)} samples | "
+                f"images {tuple(batch['image'].shape)} {batch['image'].dtype} "
+                f"| "
+                f"masks {tuple(batch['mask'].shape)} {batch['mask'].dtype}"
+            )
     except (OSError, ValueError, KeyError, TypeError) as error:
         parser.exit(1, f"Error: {error}\n")
 

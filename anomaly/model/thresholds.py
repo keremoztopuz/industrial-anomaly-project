@@ -1,4 +1,5 @@
-"""Read the per-category is_anomaly thresholds written by the calibration script."""
+"""Read the per-category is_anomaly thresholds written by the calibration
+script."""
 
 import json
 import math
@@ -16,8 +17,15 @@ def load_thresholds(path):
         thresholds = {}
         for category, values in categories.items():
             value = values["threshold"]
-            if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
-                raise ValueError(f"{category}: threshold must be a finite nonnegative number")
+            if (
+                type(value) not in (int, float)
+                or not math.isfinite(value)
+                or value < 0
+            ):
+                raise ValueError(
+                    f"{category}: threshold must be a finite nonnegative "
+                    f"number"
+                )
             thresholds[category] = value
         return thresholds
     except (OSError, ValueError, KeyError, TypeError) as error:
