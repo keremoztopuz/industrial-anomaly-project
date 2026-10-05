@@ -22,13 +22,15 @@ def reference_for(values):
     return {"reference": values, "warn": warn, "alarm": alarm}
 
 
-REFERENCE = {signal: reference_for(NORMAL) for signal in drift.SIGNALS}
+REFERENCE = {"anomaly_score": reference_for(NORMAL),
+             "brightness": {"reference": NORMAL}, "contrast": {"reference": NORMAL}}
 
 
-def records(n, shift=0.0, flagged=0, category="bottle"):
+def records(n, shift=0.0, flagged=0, category="bottle", brightness_shift=0.0):
     rng = np.random.default_rng(1)
     return [{"category": category, "anomaly_score": float(rng.normal(10 + shift, 1)),
-             "brightness": float(rng.normal(10, 1)), "contrast": float(rng.normal(10, 1)),
+             "brightness": float(rng.normal(10 + brightness_shift, 1)),
+             "contrast": float(rng.normal(10, 1)),
              "is_anomaly": i < flagged} for i in range(n)]
 
 
@@ -90,6 +92,12 @@ class CheckCategoryTests(unittest.TestCase):
         self.assertEqual(result["alarm_rate_status"], "alarm")
         self.assertAlmostEqual(result["alarm_rate"], 0.4)
 
+    def test_input_change_alone_does_not_change_status(self):
+        result = drift.check_category(records(50, brightness_shift=3), REFERENCE)
+        self.assertEqual(result["status"], "stable")
+        self.assertAlmostEqual(result["brightness_change"], 0.3, delta=0.05)
+        self.assertAlmostEqual(result["contrast_change"], 0.0, delta=0.05)
+
 
 class CheckDriftScriptTests(unittest.TestCase):
     def test_reads_logs_reports_and_logs_to_mlflow(self):
@@ -125,6 +133,7 @@ class CheckDriftScriptTests(unittest.TestCase):
             self.assertEqual(run.data.tags["status/bottle"], "alarm")
             self.assertEqual(run.data.tags["status/pill"], "insufficient_data")
             self.assertIn("psi_anomaly_score/bottle", run.data.metrics)
+            self.assertIn("brightness_change/bottle", run.data.metrics)
 
 
 class ReferencePathTests(unittest.TestCase):

@@ -2,8 +2,9 @@
 
 For each category: the held-out normal training scores from thresholds.json, and the
 grayscale brightness and contrast of its normal training images, measured the same
-way the service logs them. Each signal gets warning and alarm PSI cut-offs calibrated
-for the check window. Writes drift_reference.json next to the banks.
+way the service logs them. The scores get warning and alarm PSI cut-offs calibrated
+for the check window; brightness and contrast are only reported as a change from their
+mean. Writes drift_reference.json next to the banks.
 
 Run from the repository root: python -m scripts.build_drift_reference
 """
@@ -51,8 +52,8 @@ def main():
             MVTecDataset(args.dataset_root, category, "train"))
         categories[category] = {
             "anomaly_score": signal(values["holdout_scores"], args.window),
-            "brightness": signal(brightness, args.window),
-            "contrast": signal(contrast, args.window),
+            "brightness": {"reference": brightness},
+            "contrast": {"reference": contrast},
         }
         score = categories[category]["anomaly_score"]
         print(f"{category}: {len(values['holdout_scores'])} scores, {len(brightness)} images, "

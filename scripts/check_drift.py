@@ -16,7 +16,7 @@ from pathlib import Path
 
 from mlflow.tracking import MlflowClient
 
-from anomaly.drift import SEVERITY, SIGNALS, check_category
+from anomaly.drift import INPUT_SIGNALS, SEVERITY, check_category
 from scripts.deploy_model import gcloud
 
 EXPERIMENT = "monitoring"
@@ -40,21 +40,22 @@ def check_all(predictions, reference):
             for category, values in reference["categories"].items()}
 
 
-def log_to_mlflow(tracking_uri, reference, results, fetched):
+def log_to_mlflow(tracking_uri, reference, results, fetched, label=None):
     client = MlflowClient(tracking_uri)
     experiment = client.get_experiment_by_name(EXPERIMENT)
     experiment_id = (experiment.experiment_id if experiment
                      else client.create_experiment(EXPERIMENT))
     overall = max((result["status"] for result in results.values()), key=SEVERITY.get)
-    run = client.create_run(experiment_id, run_name=f"drift-check-v{reference['model_version']}",
-                            tags={"status": overall})
+    tags = {"status": overall, **({"label": label} if label else {})}
+    run = client.create_run(experiment_id, run_name=label or f"drift-check-v{reference['model_version']}",
+                            tags=tags)
     run_id = run.info.run_id
     for key, value in {"model_version": reference["model_version"],
                        "window": reference["window"], "predictions_fetched": fetched}.items():
         client.log_param(run_id, key, value)
     for category, result in results.items():
         client.set_tag(run_id, f"status/{category}", result["status"])
-        for key in [f"psi_{signal}" for signal in SIGNALS] + ["alarm_rate"]:
+        for key in ["psi_anomaly_score", "alarm_rate"] + [f"{s}_change" for s in INPUT_SIGNALS]:
             if key in result:
                 client.log_metric(run_id, f"{key}/{category}", result[key])
     client.set_terminated(run_id)
@@ -72,6 +73,7 @@ def main():
     parser.add_argument("--limit", type=int, default=5000)
     parser.add_argument("--tracking-uri", default="sqlite:///mlflow.db")
     parser.add_argument("--no-mlflow", action="store_true")
+    parser.add_argument("--label", help="Name for this check in MLflow, e.g. a simulation scenario")
     args = parser.parse_args()
 
     reference_path = args.reference.resolve()
@@ -83,12 +85,13 @@ def main():
     results = check_all(predictions, reference)
     for category, result in results.items():
         details = "" if result["status"] == "insufficient_data" else (
-            f"  score {result['anomaly_score_status']}, brightness {result['brightness_status']}, "
-            f"contrast {result['contrast_status']}, alarm rate {result['alarm_rate']:.0%}")
+            f"  score {result['anomaly_score_status']}, alarm rate {result['alarm_rate']:.0%}"
+            f" | brightness {result['brightness_change']:+.1%}, "
+            f"contrast {result['contrast_change']:+.1%}")
         print(f"{category:11} {result['status']:17} {result['predictions']:3d} predictions{details}")
     overall = max((result["status"] for result in results.values()), key=SEVERITY.get)
     if not args.no_mlflow:
-        log_to_mlflow(args.tracking_uri, reference, results, len(predictions))
+        log_to_mlflow(args.tracking_uri, reference, results, len(predictions), args.label)
     print(f"overall: {overall} ({len(predictions)} predictions for model "
           f"v{reference['model_version']})")
     if overall == "alarm":

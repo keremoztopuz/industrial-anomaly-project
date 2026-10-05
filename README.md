@@ -27,6 +27,7 @@ Per-category tables, run manifests and caveats are in [`reports/`](reports/) (wr
 | [`local_aggregation.md`](reports/local_aggregation.md) | Does averaging neighboring features help? |
 | [`border_exclusion.md`](reports/border_exclusion.md) | Why was `grid` failing, and how was it fixed? |
 | [`threshold_calibration.md`](reports/threshold_calibration.md) | Where should the defective/normal cut-off be? |
+| [`drift_simulation.md`](reports/drift_simulation.md) | Does the drift check catch lighting, focus and defect changes? |
 
 ## How it works
 
@@ -59,6 +60,7 @@ scripts/
   deploy_model.py         Point Cloud Run at the version behind an MLflow alias
   build_drift_reference.py  Reference scores, brightness and contrast for drift checks
   check_drift.py          Compare recent live predictions with the reference
+  simulate_drift.py       Send drift scenarios (dark, blur, defect wave) to the live service
   visualize_anomalies.py  Render example images with masks and anomaly overlays
   dataset_summary.py      Count images per category, split and defect
   validate_dataset.py     Decode every image and mask and check their sizes
@@ -206,7 +208,7 @@ Each version gets its own folder in the bucket and is never overwritten. To roll
 
 Every prediction is logged as one JSON line (category, model version, score, threshold, `is_anomaly`, latency, image size, brightness and contrast; never the image or filename). Cloud Run sends it to Cloud Logging.
 
-`scripts/check_drift.py` takes each category's last 50 predictions for the deployed model version and compares them with `drift_reference.json`: the held-out normal scores, and the brightness and contrast of the normal training images. Each signal is compared with PSI, and the share of flagged predictions is compared with three times the expected false alarm rate. A run is logged to the MLflow `monitoring` experiment, and the script exits with status 1 on an alarm.
+`scripts/check_drift.py` takes each category's last 50 predictions for the deployed model version and compares them with `drift_reference.json`: the held-out normal scores, and the brightness and contrast of the normal training images. Only the model's behavior raises an alarm: the score distribution (PSI) and the share of flagged predictions (above three times the expected false alarm rate). Brightness and contrast are shown as the percentage change of their mean, for a person to read: a failing lamp shows up as roughly −40% brightness. They don't raise alarms or drive an automatic diagnosis, because MVTec's test images already differ from the training images by up to 30% in contrast in some categories, more than a simulated out-of-focus camera (6%). A run is logged to the MLflow `monitoring` experiment, and the script exits with status 1 on an alarm.
 
 The textbook PSI cut-offs (0.1 warning, 0.25 alarm) assume thousands of samples. On 50 predictions with no drift at all they would warn 86% and alarm 28% of the time. So each cut-off is measured instead: `build_drift_reference.py` resamples windows from the reference thousands of times and puts the warning and alarm cut-offs where no-drift windows land only 5% and 1% of the time. Bin shares use Laplace smoothing, because with ~50 reference values a single empty bin otherwise dominates PSI.
 
@@ -214,6 +216,8 @@ The textbook PSI cut-offs (0.1 warning, 0.25 alarm) assume thousands of samples.
 .venv/bin/python -m scripts.build_drift_reference   # once per deployed model version
 .venv/bin/python -m scripts.check_drift
 ```
+
+A simulation against the live service ([`drift_simulation.md`](reports/drift_simulation.md)) checked four scenarios on `cable`: a normal day only warns, while a failing lamp, an out-of-focus camera and a defect wave all raise an alarm.
 
 ## Tests
 
