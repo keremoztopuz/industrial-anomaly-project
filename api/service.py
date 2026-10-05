@@ -1,5 +1,6 @@
 import json
 import os
+from functools import lru_cache
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -47,7 +48,13 @@ async def lifespan(app):
     yield
 
 app = FastAPI(lifespan=lifespan)
-transform = build_transform(256)
+
+
+@lru_cache
+def transform_for(image_size):
+    """One preprocessing pipeline per input size; banks may be fit at different sizes."""
+    return build_transform(image_size)
+
 
 @app.get("/")
 def read_root():
@@ -83,9 +90,10 @@ def predict(category: str, upload_file: UploadFile, request: Request):
     stats = ImageStat.Stat(image.convert("L"))
 
     start = time.perf_counter()
-    tensor = transform(image).unsqueeze(0)
+    model = models[category]
+    tensor = transform_for(getattr(model, "image_size", 256))(image).unsqueeze(0)
     with torch.no_grad():
-        scores, _ = models[category].predict(tensor)
+        scores, _ = model.predict(tensor)
 
     score = scores[0].item()
     latency_ms = (time.perf_counter() - start) * 1000

@@ -21,7 +21,7 @@ class PatchCore:
     """
 
     def __init__(self, device="cpu", max_patches=2048, projection_dim=256, seed=42,
-                 selection="random", neighborhood=1, border=0, backbone=None):
+                 selection="random", neighborhood=1, border=0, backbone=None, image_size=256):
         if max_patches < 1 or projection_dim < 1:
             raise ValueError("max_patches and projection_dim must be positive")
         if selection not in ("random", "coreset"):
@@ -37,6 +37,7 @@ class PatchCore:
         self.selection = selection
         self.neighborhood = neighborhood
         self.border = border
+        self.image_size = image_size  # square input size the bank was fit on
 
         if backbone is None:
             model = wide_resnet50_2(weights=Wide_ResNet50_2_Weights.IMAGENET1K_V2)
@@ -134,6 +135,7 @@ class PatchCore:
             "selection": self.selection,
             "neighborhood": self.neighborhood,
             "border": self.border,
+            "image_size": self.image_size,
             "projection": self.projection.cpu(),
             "memory_bank": self.memory_bank,
         }, path)
@@ -143,7 +145,8 @@ class PatchCore:
         state = torch.load(path, map_location="cpu", weights_only=True)
         model = cls(device, state["max_patches"], state["projection_dim"],
                     state["seed"], state.get("selection", "random"),
-                    state.get("neighborhood", 1), state.get("border", 0), backbone=backbone)
+                    state.get("neighborhood", 1), state.get("border", 0), backbone=backbone,
+                    image_size=state.get("image_size", 256))
         model.projection = state["projection"].to(model.device)
         model.memory_bank = state["memory_bank"]
         return model
