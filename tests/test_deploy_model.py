@@ -33,15 +33,16 @@ class DeployModelTests(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def deploy(self, bucket_has_version):
+    def deploy(self, bucket_has_version, *extra):
         calls = []
 
         def fake_gcloud(*args, check=True):
             calls.append(args)
             code = 0 if args[:2] != ("storage", "ls") or bucket_has_version else 1
-            return subprocess.CompletedProcess(args, code)
+            stdout = "registry/anomaly-api:abc123\n" if args[:3] == ("run", "services", "describe") else ""
+            return subprocess.CompletedProcess(args, code, stdout=stdout)
 
-        argv = ["deploy", "--tracking-uri", self.uri]
+        argv = ["deploy", "--tracking-uri", self.uri, *extra]
         with mock.patch("sys.argv", argv), \
                 mock.patch.object(deploy_model, "gcloud", side_effect=fake_gcloud), \
                 mock.patch.object(deploy_model.mlflow.artifacts, "download_artifacts",
@@ -53,7 +54,7 @@ class DeployModelTests(unittest.TestCase):
     def test_uploads_missing_version_then_points_cloud_run_at_it(self):
         calls, download = self.deploy(bucket_has_version=False)
         self.assertEqual(download.call_args.args[0], "models:/patchcore-mvtec@production")
-        ls, cp, update = calls
+        ls, cp, update, describe, job = calls
         self.assertEqual(ls[:3], ("storage", "ls", "gs://anomaly-api/patchcore-mvtec/v2/"))
         self.assertEqual([Path(path).name for path in cp[2:5]],
                          ["bottle.pt", "cable.pt", "thresholds.json"])
@@ -64,10 +65,22 @@ class DeployModelTests(unittest.TestCase):
             update[update.index("--update-env-vars") + 1],
             "MODEL_DIR=/models/patchcore-mvtec/v2,MODEL_NAME=patchcore-mvtec,MODEL_VERSION=2")
         self.assertNotIn("--image", update)
+        self.assertEqual(describe[:4], ("run", "services", "describe", "anomaly-api"))
+        self.assertEqual(job[:4], ("run", "jobs", "update", "drift-check"))
+        self.assertEqual(job[job.index("--image") + 1], "registry/anomaly-api:abc123")
+        self.assertEqual(job[job.index("--update-env-vars") + 1],
+                         "DRIFT_REFERENCE=/models/patchcore-mvtec/v2/drift_reference.json")
 
     def test_existing_version_is_not_uploaded_again(self):
         calls, download = self.deploy(bucket_has_version=True)
         download.assert_not_called()
+        self.assertEqual([call[:3] for call in calls],
+                         [("storage", "ls", "gs://anomaly-api/patchcore-mvtec/v2/"),
+                          ("run", "services", "update"), ("run", "services", "describe"),
+                          ("run", "jobs", "update")])
+
+    def test_empty_drift_job_skips_the_job_update(self):
+        calls, _ = self.deploy(True, "--drift-job", "")
         self.assertEqual([call[:2] for call in calls], [("storage", "ls"), ("run", "services")])
 
 
