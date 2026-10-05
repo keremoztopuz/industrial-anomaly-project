@@ -44,6 +44,7 @@ anomaly/
   patchcore.py            PatchCore model: feature extraction, bank selection, scoring, save/load
   mvtec_dataset.py        PyTorch dataset for the FiftyOne export of MVTec AD
   metrics.py              Exact image and pixel AUROC
+  drift.py                PSI drift checks with calibrated cut-offs
   run_pipeline.py         Prefect flow: fit, save, evaluate, write a run manifest and log to MLflow
 api/service.py            FastAPI service that serves the saved banks
 Dockerfile                CPU-only image for the service
@@ -56,6 +57,8 @@ scripts/
   backfill_mlflow.py      Record runs made before MLflow tracking
   register_model.py       Register a run's banks as a new patchcore-mvtec version
   deploy_model.py         Point Cloud Run at the version behind an MLflow alias
+  build_drift_reference.py  Reference scores, brightness and contrast for drift checks
+  check_drift.py          Compare recent live predictions with the reference
   visualize_anomalies.py  Render example images with masks and anomaly overlays
   dataset_summary.py      Count images per category, split and defect
   validate_dataset.py     Decode every image and mask and check their sizes
@@ -198,6 +201,19 @@ The deployed banks are registered as the `patchcore-mvtec` model. Each version p
 ```
 
 Each version gets its own folder in the bucket and is never overwritten. To roll back, move the `production` alias to an older version and run `deploy_model.py` again: the files are already there, so only the service's environment changes. `GET /model` shows which version is live.
+
+## Monitoring
+
+Every prediction is logged as one JSON line (category, model version, score, threshold, `is_anomaly`, latency, image size, brightness and contrast; never the image or filename). Cloud Run sends it to Cloud Logging.
+
+`scripts/check_drift.py` takes each category's last 50 predictions for the deployed model version and compares them with `drift_reference.json`: the held-out normal scores, and the brightness and contrast of the normal training images. Each signal is compared with PSI, and the share of flagged predictions is compared with three times the expected false alarm rate. A run is logged to the MLflow `monitoring` experiment, and the script exits with status 1 on an alarm.
+
+The textbook PSI cut-offs (0.1 warning, 0.25 alarm) assume thousands of samples. On 50 predictions with no drift at all they would warn 86% and alarm 28% of the time. So each cut-off is measured instead: `build_drift_reference.py` resamples windows from the reference thousands of times and puts the warning and alarm cut-offs where no-drift windows land only 5% and 1% of the time. Bin shares use Laplace smoothing, because with ~50 reference values a single empty bin otherwise dominates PSI.
+
+```sh
+.venv/bin/python -m scripts.build_drift_reference   # once per deployed model version
+.venv/bin/python -m scripts.check_drift
+```
 
 ## Tests
 
