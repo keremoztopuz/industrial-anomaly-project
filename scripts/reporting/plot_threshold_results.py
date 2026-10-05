@@ -222,14 +222,13 @@ def main():
     model_dir = args.model_dir.resolve()
     if not model_dir.is_relative_to(Path.cwd().resolve()):
         parser.error("--model-dir must be inside the current directory")
-    args.model_dir = model_dir
     output_dir = args.output_dir.resolve()
     if not output_dir.is_relative_to(Path.cwd().resolve()):
         parser.error("--output-dir must be inside the current directory")
 
     thresholds = {category: values["threshold"] for category, values in json.loads(
-        (args.model_dir / "thresholds.json").read_text(encoding="utf-8"))["categories"].items()}
-    scores = load_scores(args.model_dir, args.dataset_root, args.device,
+        (model_dir / "thresholds.json").read_text(encoding="utf-8"))["categories"].items()}
+    scores = load_scores(model_dir, args.dataset_root, args.device,
                          args.batch_size, args.rescore)
     per_category = {
         category: confusion(torch.tensor(data["scores"]), torch.tensor(data["labels"]),

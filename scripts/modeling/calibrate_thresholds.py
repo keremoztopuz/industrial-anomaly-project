@@ -90,7 +90,7 @@ def main():
                 "seed": args.seed}
     for name, results in (("thresholds.json", thresholds),
                           ("threshold_evaluation.json", evaluation)):
-        path = args.model_dir / name
+        path = model_dir / name
         write_json(path, merge_categories(path, settings, results))
 
 

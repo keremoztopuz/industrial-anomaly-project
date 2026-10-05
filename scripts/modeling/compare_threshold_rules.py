@@ -83,6 +83,20 @@ def pick_winner(results):
     return max(results, key=lambda item: (item[2], item[1]))[0]
 
 
+def load_inputs(model_dir, seed):
+    """Read the calibration, the held-out scores and the test scores, and split every
+    category's test images into validation and final halves."""
+    calibration = json.loads((model_dir / "thresholds.json").read_text(encoding="utf-8"))
+    holdout = {category: values["holdout_scores"]
+               for category, values in calibration["categories"].items()}
+    scores = json.loads((model_dir / "test_scores.json").read_text(encoding="utf-8"))
+    splits = {}
+    for category, data in scores.items():
+        validation, final = split_halves(data["labels"], seed)
+        splits[category] = {"validation": validation, "final": final}
+    return calibration, holdout, scores, splits
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model-dir", type=Path,
@@ -95,16 +109,8 @@ def main():
     model_dir = args.model_dir.resolve()
     if not model_dir.is_relative_to(Path.cwd().resolve()):
         parser.error("--model-dir must be inside the current directory")
-    args.model_dir = model_dir
 
-    calibration = json.loads((args.model_dir / "thresholds.json").read_text(encoding="utf-8"))
-    holdout = {category: values["holdout_scores"]
-               for category, values in calibration["categories"].items()}
-    scores = json.loads((args.model_dir / "test_scores.json").read_text(encoding="utf-8"))
-    splits = {}
-    for category, data in scores.items():
-        validation, final = split_halves(data["labels"], args.seed)
-        splits[category] = {"validation": validation, "final": final}
+    calibration, holdout, scores, splits = load_inputs(model_dir, args.seed)
 
     client = MlflowClient(args.tracking_uri)
     experiment = client.get_experiment_by_name(EXPERIMENT)
@@ -149,8 +155,8 @@ def main():
         calibration["method"] = winner
         calibration["selected_by"] = (f"mean validation balanced accuracy on half of the "
                                       f"test set, split seed {args.seed}")
-        write_json(args.model_dir / "thresholds.json", calibration)
-        print(f"wrote {winner} thresholds to {args.model_dir / 'thresholds.json'}")
+        write_json(model_dir / "thresholds.json", calibration)
+        print(f"wrote {winner} thresholds to {model_dir / 'thresholds.json'}")
 
 
 if __name__ == "__main__":

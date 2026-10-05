@@ -49,9 +49,8 @@ def main():
     model_dir = args.model_dir.resolve()
     if not model_dir.is_relative_to(Path.cwd().resolve()):
         parser.error("--model-dir must be inside the current directory")
-    args.model_dir = model_dir
 
-    calibration = json.loads((args.model_dir / "thresholds.json").read_text(encoding="utf-8"))
+    calibration = json.loads((model_dir / "thresholds.json").read_text(encoding="utf-8"))
     categories = {}
     for category, values in sorted(calibration["categories"].items()):
         brightness, contrast = image_stats(
@@ -64,7 +63,7 @@ def main():
         score = categories[category]["anomaly_score"]
         print(f"{category}: {len(values['holdout_scores'])} scores, {len(brightness)} images, "
               f"score PSI warn {score['warn']:.3f} alarm {score['alarm']:.3f}", flush=True)
-    write_json(args.model_dir / "drift_reference.json", {
+    write_json(model_dir / "drift_reference.json", {
         "model_version": args.model_version, "window": args.window, "bins": BINS,
         "expected_false_positive_rate": EXPECTED_FALSE_POSITIVE_RATE,
         "categories": categories})
