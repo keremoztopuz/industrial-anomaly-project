@@ -35,17 +35,10 @@ class PickSamplesTests(unittest.TestCase):
             simulate_drift.pick_samples(dataset, "normal", 50, seed=42)
 
 
-class CheckUrlTests(unittest.TestCase):
-    def test_allows_cloud_run_and_local(self):
-        for url in ("https://anomaly-api-sw4p2ayosa-ew.a.run.app", "http://127.0.0.1:8000",
-                    "http://localhost:8000"):
-            self.assertEqual(simulate_drift.check_url(url), url)
-
-    def test_rejects_other_hosts(self):
-        for url in ("https://example.com", "http://anomaly.run.app", "https://run.app.evil.com",
-                    "file:///etc/passwd"):
-            with self.subTest(url=url), self.assertRaises(ValueError):
-                simulate_drift.check_url(url)
+class TargetTests(unittest.TestCase):
+    def test_only_fixed_targets_exist(self):
+        self.assertEqual(sorted(simulate_drift.TARGETS), ["live", "local"])
+        self.assertTrue(simulate_drift.TARGETS["live"].endswith(".run.app"))
 
 
 class ApplyScenarioTests(unittest.TestCase):

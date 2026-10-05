@@ -14,7 +14,6 @@ check_drift: python -m scripts.simulate_drift --scenario dark
 import argparse
 from io import BytesIO
 from pathlib import Path
-from urllib.parse import urlparse
 
 import httpx
 import numpy as np
@@ -23,6 +22,8 @@ from PIL import Image, ImageEnhance, ImageFilter
 from anomaly.mvtec_dataset import MVTecDataset
 
 SCENARIOS = ("normal", "dark", "blur", "defects")
+# Fixed targets, so the script can't be pointed at an arbitrary address.
+TARGETS = {"live": "https://anomaly-api-sw4p2ayosa-ew.a.run.app", "local": "http://127.0.0.1:8000"}
 DARK_FACTOR = 0.6
 BLUR_RADIUS = 4
 
@@ -45,17 +46,6 @@ def pick_samples(dataset, scenario, count, seed):
     return chosen
 
 
-def check_url(url):
-    """Allow only the Cloud Run service or a local one, so the script can't be aimed elsewhere."""
-    parsed = urlparse(url)
-    host = parsed.hostname or ""
-    if parsed.scheme == "https" and host.endswith(".run.app"):
-        return url
-    if parsed.scheme in ("http", "https") and host in ("127.0.0.1", "localhost"):
-        return url
-    raise ValueError(f"--url must be a Cloud Run (*.run.app) or local address, got {url}")
-
-
 def apply_scenario(image, scenario):
     if scenario == "dark":
         return ImageEnhance.Brightness(image).enhance(DARK_FACTOR)
@@ -75,19 +65,15 @@ def main():
     parser.add_argument("--scenario", choices=SCENARIOS, required=True)
     parser.add_argument("--category", default="cable")
     parser.add_argument("--count", type=int, default=50)
-    parser.add_argument("--url", default="https://anomaly-api-sw4p2ayosa-ew.a.run.app")
+    parser.add_argument("--target", choices=sorted(TARGETS), default="live")
     parser.add_argument("--dataset-root", type=Path, default=Path("data/mvtec-ad"))
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
-    try:
-        base_url = check_url(args.url)
-    except ValueError as error:
-        parser.error(str(error))
 
     dataset = MVTecDataset(args.dataset_root, args.category, "test")
     samples = pick_samples(dataset, args.scenario, args.count, args.seed)
     flagged = 0
-    with httpx.Client(base_url=base_url, timeout=180) as client:
+    with httpx.Client(base_url=TARGETS[args.target], timeout=180) as client:
         for index, sample in enumerate(samples, start=1):
             with Image.open(dataset.root / sample["filepath"]) as source:
                 image = apply_scenario(source.convert("RGB"), args.scenario)
