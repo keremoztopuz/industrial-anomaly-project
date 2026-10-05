@@ -11,12 +11,11 @@ Run from the repository root: python -m scripts.check_drift
 import argparse
 import json
 import sys
-from collections import defaultdict
 from pathlib import Path
 
 from mlflow.tracking import MlflowClient
 
-from anomaly.drift import INPUT_SIGNALS, SEVERITY, check_category
+from anomaly.drift import INPUT_SIGNALS, check_all, overall_status
 from scripts.deploy_model import gcloud
 
 EXPERIMENT = "monitoring"
@@ -32,20 +31,12 @@ def fetch_predictions(project, service, model_version, freshness, limit):
     return [entry["jsonPayload"] for entry in json.loads(result.stdout or "[]")]
 
 
-def check_all(predictions, reference):
-    by_category = defaultdict(list)
-    for record in predictions:
-        by_category[record["category"]].append(record)
-    return {category: check_category(by_category[category], values, reference["window"])
-            for category, values in reference["categories"].items()}
-
-
 def log_to_mlflow(tracking_uri, reference, results, fetched, label=None):
     client = MlflowClient(tracking_uri)
     experiment = client.get_experiment_by_name(EXPERIMENT)
     experiment_id = (experiment.experiment_id if experiment
                      else client.create_experiment(EXPERIMENT))
-    overall = max((result["status"] for result in results.values()), key=SEVERITY.get)
+    overall = overall_status(results)
     tags = {"status": overall, **({"label": label} if label else {})}
     run = client.create_run(experiment_id, run_name=label or f"drift-check-v{reference['model_version']}",
                             tags=tags)
@@ -89,7 +80,7 @@ def main():
             f" | brightness {result['brightness_change']:+.1%}, "
             f"contrast {result['contrast_change']:+.1%}")
         print(f"{category:11} {result['status']:17} {result['predictions']:3d} predictions{details}")
-    overall = max((result["status"] for result in results.values()), key=SEVERITY.get)
+    overall = overall_status(results)
     if not args.no_mlflow:
         log_to_mlflow(args.tracking_uri, reference, results, len(predictions), args.label)
     print(f"overall: {overall} ({len(predictions)} predictions for model "
