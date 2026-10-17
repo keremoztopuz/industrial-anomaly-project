@@ -7,7 +7,7 @@
   <title>Anomaly detection · Test</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="style.css">
-  <script src="app.js" defer></script>
+  <script type="module" src="app.js"></script>
 </head>
 <body>
   <main>
@@ -45,7 +45,7 @@
           <button id="run" type="submit" disabled>Run prediction</button>
         </fieldset>
         <div class="messages">
-          <p id="status" role="status">Loading categories…</p>
+          <output id="status">Loading categories…</output>
           <p id="error" role="alert" hidden></p>
           <button id="retry" type="button" hidden>Retry loading categories</button>
         </div>
@@ -56,14 +56,14 @@
         <figure>
           <div class="preview">
             <p id="preview-empty" class="muted">Upload an image or choose a sample.</p>
-            <img id="preview-image" alt="Selected test image" hidden>
+            <img id="preview-image" alt="Selected test" hidden>
           </div>
           <figcaption id="selection">No image selected</figcaption>
         </figure>
         <p id="dataset-label" class="hint" hidden></p>
 
         <section id="result" aria-labelledby="verdict" hidden>
-          <h2 id="verdict" tabindex="-1"></h2>
+          <h2 id="verdict" tabindex="-1">Prediction result</h2>
           <dl>
             <div><dt>Anomaly score</dt><dd id="score"></dd></div>
             <div><dt>Threshold</dt><dd id="threshold"></dd></div>

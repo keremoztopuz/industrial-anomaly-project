@@ -1,12 +1,10 @@
-"use strict";
-
 const form = document.querySelector("#prediction-form");
 const controls = document.querySelector("#controls");
 const category = document.querySelector("#category");
 const upload = document.querySelector("#upload");
 const run = document.querySelector("#run");
 const retry = document.querySelector("#retry");
-const status = document.querySelector("#status");
+const progressText = document.querySelector("#status");
 const error = document.querySelector("#error");
 const preview = document.querySelector("#preview-image");
 const emptyPreview = document.querySelector("#preview-empty");
@@ -57,13 +55,15 @@ function selectFile(file, sample = null) {
   emptyPreview.textContent = "Upload an image or choose a sample.";
   selection.textContent = file ? file.name : "No image selected";
   datasetLabel.hidden = !sample;
-  datasetLabel.textContent = sample
-    ? `Dataset label: ${sample.kind === "normal" ? "Normal (good)" : `Defective (${sample.label})`}. This is the reference label, not the model's prediction.`
-    : "";
+  datasetLabel.textContent = "";
+  if (sample) {
+    const label = sample.kind === "normal" ? "Normal (good)" : `Defective (${sample.label})`;
+    datasetLabel.textContent = `Dataset label: ${label}. This is the reference label, not the model's prediction.`;
+  }
   if (file) {
     previewURL = URL.createObjectURL(file);
     preview.src = previewURL;
-    preview.alt = `Selected test image: ${file.name}`;
+    preview.alt = `Selected test: ${file.name}`;
   } else {
     preview.removeAttribute("src");
   }
@@ -104,7 +104,7 @@ async function request(path, options = {}) {
 async function loadCategories() {
   ready = false;
   retry.hidden = true;
-  status.textContent = "Loading categories…";
+  progressText.textContent = "Loading categories…";
   showError("");
   updateControls();
   try {
@@ -117,7 +117,7 @@ async function loadCategories() {
     showError(`Could not load categories. ${cause.message}`);
     retry.hidden = false;
   } finally {
-    status.textContent = "";
+    progressText.textContent = "";
     updateControls();
   }
 }
@@ -125,12 +125,12 @@ async function loadCategories() {
 category.addEventListener("change", () => {
   upload.value = "";
   selectFile(null);
-  status.textContent = "";
+  progressText.textContent = "";
 });
 
 upload.addEventListener("change", () => {
   selectFile(upload.files[0] || null);
-  status.textContent = "";
+  progressText.textContent = "";
 });
 
 for (const button of sampleButtons) {
@@ -140,7 +140,7 @@ for (const button of sampleButtons) {
     upload.value = "";
     selectFile(null);
     busy = true;
-    status.textContent = "Loading sample…";
+    progressText.textContent = "Loading sample…";
     updateControls();
     try {
       const response = await request(sample.file);
@@ -150,7 +150,7 @@ for (const button of sampleButtons) {
       showError(`Could not load this sample. You can upload an image instead. ${cause.message}`);
     } finally {
       busy = false;
-      status.textContent = "";
+      progressText.textContent = "";
       updateControls();
     }
   });
@@ -162,14 +162,17 @@ form.addEventListener("submit", async event => {
   busy = true;
   result.hidden = true;
   showError("");
-  status.textContent = "Running prediction… Please wait.";
+  progressText.textContent = "Running prediction… Please wait.";
   updateControls();
   const body = new FormData();
   body.append("upload_file", selectedFile, selectedFile.name);
   try {
     const response = await request(`../predict/${encodeURIComponent(category.value)}`, { method: "POST", body });
     const data = await response.json();
-    const decision = data.is_anomaly === null ? "unavailable" : data.is_anomaly ? "anomaly" : "normal";
+    let decision = "unavailable";
+    if (data.is_anomaly !== null) {
+      decision = data.is_anomaly ? "anomaly" : "normal";
+    }
     result.dataset.decision = decision;
     verdict.textContent = {
       anomaly: "Anomaly detected",
@@ -187,24 +190,31 @@ form.addEventListener("submit", async event => {
     showError(cause.message);
   } finally {
     busy = false;
-    status.textContent = "";
+    progressText.textContent = "";
     updateControls();
   }
 });
 
 retry.addEventListener("click", loadCategories);
-loadCategories();
 
-request("samples.json").then(response => response.json()).then(data => {
-  samples = data.samples;
-  sampleHelp.textContent = "Original normal and defective images from the MVTec AD test set.";
-  updateControls();
-}).catch(() => {
-  sampleHelp.textContent = "Samples are unavailable. You can upload a PNG or JPEG instead.";
-});
+async function loadSamples() {
+  try {
+    const data = await (await request("samples.json")).json();
+    samples = data.samples;
+    sampleHelp.textContent = "Original normal and defective images from the MVTec AD test set.";
+    updateControls();
+  } catch {
+    sampleHelp.textContent = "Samples are unavailable. You can upload a PNG or JPEG instead.";
+  }
+}
 
-request("../model").then(response => response.json()).then(data => {
-  document.querySelector("#model").textContent = `${data.name} · version ${data.version}`;
-}).catch(() => {
-  document.querySelector("#model").textContent = "Model information unavailable.";
-});
+async function loadModel() {
+  try {
+    const data = await (await request("../model")).json();
+    document.querySelector("#model").textContent = `${data.name} · version ${data.version}`;
+  } catch {
+    document.querySelector("#model").textContent = "Model information unavailable.";
+  }
+}
+
+await Promise.all([loadCategories(), loadSamples(), loadModel()]);
