@@ -4,6 +4,7 @@ import unittest
 from collections import defaultdict
 from io import BytesIO
 
+from fastapi.testclient import TestClient
 from PIL import Image
 
 from tests.support.api_fakes import FakeModel, make_client
@@ -18,7 +19,7 @@ class TestPageTests(unittest.TestCase):
     def test_page_redirect_and_assets(self):
         redirect = self.client.get("/ui", follow_redirects=False)
         self.assertEqual(redirect.status_code, 307)
-        self.assertTrue(redirect.headers["location"].endswith("/ui/"))
+        self.assertEqual(redirect.headers["location"], "./ui/")
         for path, content_type in (
             ("/ui/", "text/html"),
             ("/ui/style.css", "text/css"),
@@ -35,6 +36,17 @@ class TestPageTests(unittest.TestCase):
         self.assertIn('href="style.css"', page)
         self.assertIn('src="app.js"', page)
         self.assertIn('href="../docs"', page)
+
+    def test_redirect_preserves_https_and_proxy_path_prefix(self):
+        client = TestClient(
+            self.client.app,
+            base_url="https://public.example/proxy",
+            root_path="/proxy",
+        )
+        response = client.get("/ui")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(str(response.url), "https://public.example/proxy/ui/")
+        self.assertEqual(response.history[0].headers["location"], "./ui/")
 
     def test_existing_routes_keep_their_contracts(self):
         self.assertEqual(
