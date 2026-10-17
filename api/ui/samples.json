@@ -1,0 +1,218 @@
+{
+  "dataset": "MVTec AD",
+  "source_url": "https://huggingface.co/datasets/Voxel51/mvtec-ad",
+  "license": "CC BY-NC-SA 4.0",
+  "selection": "First test image by source filepath, per category and normal/defective label; original bytes, unmodified.",
+  "samples": [
+    {
+      "category": "bottle",
+      "kind": "normal",
+      "label": "good",
+      "file": "samples/bottle-normal.png",
+      "source_path": "data/data_49/000-95.png"
+    },
+    {
+      "category": "bottle",
+      "kind": "defective",
+      "label": "broken_small",
+      "file": "samples/bottle-defective.png",
+      "source_path": "data/data_49/000-93.png"
+    },
+    {
+      "category": "cable",
+      "kind": "normal",
+      "label": "good",
+      "file": "samples/cable-normal.png",
+      "source_path": "data/data_36/000-69.png"
+    },
+    {
+      "category": "cable",
+      "kind": "defective",
+      "label": "missing_wire",
+      "file": "samples/cable-defective.png",
+      "source_path": "data/data_36/000-66.png"
+    },
+    {
+      "category": "capsule",
+      "kind": "normal",
+      "label": "good",
+      "file": "samples/capsule-normal.png",
+      "source_path": "data/data_9/000-18.png"
+    },
+    {
+      "category": "capsule",
+      "kind": "defective",
+      "label": "crack",
+      "file": "samples/capsule-defective.png",
+      "source_path": "data/data_8/000-15.png"
+    },
+    {
+      "category": "carpet",
+      "kind": "normal",
+      "label": "good",
+      "file": "samples/carpet-normal.png",
+      "source_path": "data/data_33/000-61.png"
+    },
+    {
+      "category": "carpet",
+      "kind": "defective",
+      "label": "color",
+      "file": "samples/carpet-defective.png",
+      "source_path": "data/data_32/000-59.png"
+    },
+    {
+      "category": "grid",
+      "kind": "normal",
+      "label": "good",
+      "file": "samples/grid-normal.png",
+      "source_path": "data/data_53/000-101.png"
+    },
+    {
+      "category": "grid",
+      "kind": "defective",
+      "label": "glue",
+      "file": "samples/grid-defective.png",
+      "source_path": "data/data_52/000-98.png"
+    },
+    {
+      "category": "hazelnut",
+      "kind": "normal",
+      "label": "good",
+      "file": "samples/hazelnut-normal.png",
+      "source_path": "data/data_29/000-55.png"
+    },
+    {
+      "category": "hazelnut",
+      "kind": "defective",
+      "label": "crack",
+      "file": "samples/hazelnut-defective.png",
+      "source_path": "data/data_28/000-53.png"
+    },
+    {
+      "category": "leather",
+      "kind": "normal",
+      "label": "good",
+      "file": "samples/leather-normal.png",
+      "source_path": "data/data_40/000-79.png"
+    },
+    {
+      "category": "leather",
+      "kind": "defective",
+      "label": "glue",
+      "file": "samples/leather-defective.png",
+      "source_path": "data/data_40/000-76.png"
+    },
+    {
+      "category": "metal_nut",
+      "kind": "normal",
+      "label": "good",
+      "file": "samples/metal_nut-normal.png",
+      "source_path": "data/data_12/000-25.png"
+    },
+    {
+      "category": "metal_nut",
+      "kind": "defective",
+      "label": "color",
+      "file": "samples/metal_nut-defective.png",
+      "source_path": "data/data_12/000-22.png"
+    },
+    {
+      "category": "pill",
+      "kind": "normal",
+      "label": "good",
+      "file": "samples/pill-normal.png",
+      "source_path": "data/data_16/000-31.png"
+    },
+    {
+      "category": "pill",
+      "kind": "defective",
+      "label": "crack",
+      "file": "samples/pill-defective.png",
+      "source_path": "data/data_15/000-28.png"
+    },
+    {
+      "category": "screw",
+      "kind": "normal",
+      "label": "good",
+      "file": "samples/screw-normal.png",
+      "source_path": "data/data_45/000-86.png"
+    },
+    {
+      "category": "screw",
+      "kind": "defective",
+      "label": "thread_top",
+      "file": "samples/screw-defective.png",
+      "source_path": "data/data_44/000-83.png"
+    },
+    {
+      "category": "tile",
+      "kind": "normal",
+      "label": "good",
+      "file": "samples/tile-normal.png",
+      "source_path": "data/data_24/000-48.png"
+    },
+    {
+      "category": "tile",
+      "kind": "defective",
+      "label": "crack",
+      "file": "samples/tile-defective.png",
+      "source_path": "data/data_23/000-46.png"
+    },
+    {
+      "category": "toothbrush",
+      "kind": "normal",
+      "label": "good",
+      "file": "samples/toothbrush-normal.png",
+      "source_path": "data/data_47/000-91.png"
+    },
+    {
+      "category": "toothbrush",
+      "kind": "defective",
+      "label": "defective",
+      "file": "samples/toothbrush-defective.png",
+      "source_path": "data/data_46/000-90.png"
+    },
+    {
+      "category": "transistor",
+      "kind": "normal",
+      "label": "good",
+      "file": "samples/transistor-normal.png",
+      "source_path": "data/data_2/000-6.png"
+    },
+    {
+      "category": "transistor",
+      "kind": "defective",
+      "label": "damaged_case",
+      "file": "samples/transistor-defective.png",
+      "source_path": "data/data_2/000-2.png"
+    },
+    {
+      "category": "wood",
+      "kind": "normal",
+      "label": "good",
+      "file": "samples/wood-normal.png",
+      "source_path": "data/data_5/002-11.png"
+    },
+    {
+      "category": "wood",
+      "kind": "defective",
+      "label": "scratch",
+      "file": "samples/wood-defective.png",
+      "source_path": "data/data_5/000-10.png"
+    },
+    {
+      "category": "zipper",
+      "kind": "normal",
+      "label": "good",
+      "file": "samples/zipper-normal.png",
+      "source_path": "data/data_20/000-42.png"
+    },
+    {
+      "category": "zipper",
+      "kind": "defective",
+      "label": "broken_teeth",
+      "file": "samples/zipper-defective.png",
+      "source_path": "data/data_19/002-37.png"
+    }
+  ]
+}

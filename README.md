@@ -4,7 +4,7 @@ Unsupervised defect detection on [MVTec AD](https://www.mvtec.com/company/resear
 
 The model sees only defect-free images during fitting. It flags a test image as anomalous when parts of it do not look like anything in its memory of normal images. It outputs an image-level score ("is this part defective?") and a pixel-level heat map ("where is the defect?").
 
-**Live API:** [anomaly-api-sw4p2ayosa-ew.a.run.app/docs](https://anomaly-api-sw4p2ayosa-ew.a.run.app/docs). Upload an image from the interactive docs page and pick a category. The service scales to zero when idle, so the first request after a quiet period takes about 30 seconds while the models load.
+**Test UI:** [anomaly-api-sw4p2ayosa-ew.a.run.app/ui/](https://anomaly-api-sw4p2ayosa-ew.a.run.app/ui/). Choose a category, then upload a PNG/JPEG or use a normal or defective sample. The page shows the anomaly score, threshold and model decision. [API docs](https://anomaly-api-sw4p2ayosa-ew.a.run.app/docs) are also available. The service scales to zero when idle, so the first request after a quiet period takes about 30 seconds while the models load.
 
 ## Results
 
@@ -80,6 +80,7 @@ api/                          FastAPI service, started with python -m api.main
   routes/                     health.py, models.py, predictions.py: HTTP only
   schemas/                    Response contracts
   services/                   model_loading.py, image_decoding.py, prediction.py
+  ui/                         Static test page and 30 original MVTec AD sample images
 scripts/                      Command line tools, grouped by what they work on
   cloud.py                    Run gcloud commands
   data/                       validate_dataset, dataset_summary
@@ -168,6 +169,7 @@ The defaults reproduce the original baseline. Banks saved before an option exist
 
 | Endpoint | Returns |
 | --- | --- |
+| `GET /ui/` | Browser test page: upload an image or choose a sample |
 | `GET /health` | `{"status": "healthy"}` |
 | `GET /categories` | Sorted list of loaded categories |
 | `GET /model` | Model name, registry version, model directory and number of loaded categories |
@@ -210,6 +212,10 @@ Run it locally against saved banks:
 MODEL_DIR=artifacts/best/patchcore .venv/bin/python -m api.main
 ```
 
+Open [http://127.0.0.1:8000/ui/](http://127.0.0.1:8000/ui/). The page uses the existing API on the same origin; there is no frontend build or separate server. It lists only loaded categories. A missing threshold shows **Decision unavailable**, and a sample's dataset label is displayed separately from the model's prediction.
+
+The page includes one normal and one defective test image for each of the 15 MVTec AD categories (about 28 MiB total). These are the first images by source filepath within each category/label group, copied without modification from the [Voxel51 export](https://huggingface.co/datasets/Voxel51/mvtec-ad). Source paths and defect labels are recorded in [`api/ui/samples.json`](api/ui/samples.json); the [CC BY-NC-SA 4.0 license](api/ui/samples/LICENSE.txt) applies to the sample images. Images are fetched only when selected. Uploaded files are sent to `/predict/{category}` and are not stored by the test page.
+
 ### Docker
 
 ```sh
@@ -218,7 +224,7 @@ docker run --rm -p 8000:8000 \
   -v "$(pwd)/artifacts/best/patchcore:/models:ro" anomaly-api
 ```
 
-Then open http://127.0.0.1:8000/docs. The image installs CPU-only PyTorch from the hash-pinned `requirements-api.lock`, downloads the Wide ResNet weights at build time so containers start without network access, and runs as a non-root user. The banks are not part of the image: they are mounted at `/models`, so new banks need no rebuild. `HOST`, `PORT` and `MODEL_DIR` can be overridden with environment variables.
+Then open [http://127.0.0.1:8000/ui/](http://127.0.0.1:8000/ui/) (or `/docs` for the API reference). The test page and its samples ship with the existing `COPY api/ api/` step. The image installs CPU-only PyTorch from the hash-pinned `requirements-api.lock`, downloads the Wide ResNet weights at build time so containers start without network access, and runs as a non-root user. The banks are not part of the image: they are mounted at `/models`, so new banks need no rebuild. `HOST`, `PORT` and `MODEL_DIR` can be overridden with environment variables.
 
 ### Deployment
 

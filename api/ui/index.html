@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Anomaly detection · Test</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Anomaly detection</h1>
+        <p>Choose a product category and test an image.</p>
+      </div>
+      <a href="../docs">API docs</a>
+    </header>
+    <p id="model" class="muted">Model information loading…</p>
+    <noscript><p>This test page needs JavaScript. You can also use the <a href="../docs">API docs</a>.</p></noscript>
+
+    <div class="workspace">
+      <form id="prediction-form">
+        <fieldset id="controls" disabled>
+          <legend>Test image</legend>
+          <label for="category">Product category</label>
+          <select id="category" name="category" required>
+            <option value="">Loading categories…</option>
+          </select>
+          <p class="hint">Use an image of the selected product type.</p>
+
+          <label for="upload">Upload an image</label>
+          <input id="upload" name="upload_file" type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" aria-describedby="upload-help">
+          <p id="upload-help" class="hint">PNG or JPEG. File size and image dimensions are checked by the server.</p>
+
+          <p class="label">Or use a test sample</p>
+          <div class="sample-buttons">
+            <button type="button" data-sample="normal" disabled>Normal sample</button>
+            <button type="button" data-sample="defective" disabled>Defective sample</button>
+          </div>
+          <p id="sample-help" class="hint">Loading samples…</p>
+
+          <button id="run" type="submit" disabled>Run prediction</button>
+        </fieldset>
+        <div class="messages">
+          <output id="status">Loading categories…</output>
+          <p id="error" role="alert" hidden></p>
+          <button id="retry" type="button" hidden>Retry loading categories</button>
+        </div>
+      </form>
+
+      <section class="output" aria-labelledby="preview-title">
+        <h2 id="preview-title">Preview</h2>
+        <figure>
+          <div class="preview">
+            <p id="preview-empty" class="muted">Upload an image or choose a sample.</p>
+            <img id="preview-image" alt="Selected test" hidden>
+          </div>
+          <figcaption id="selection">No image selected</figcaption>
+        </figure>
+        <p id="dataset-label" class="hint" hidden></p>
+
+        <section id="result" aria-labelledby="verdict" hidden>
+          <h2 id="verdict" tabindex="-1">Prediction result</h2>
+          <dl>
+            <div><dt>Anomaly score</dt><dd id="score"></dd></div>
+            <div><dt>Threshold</dt><dd id="threshold"></dd></div>
+          </dl>
+          <p id="decision-note" class="hint"></p>
+        </section>
+      </section>
+    </div>
+
+    <footer>
+      <p>The first visit after an idle period can take about 30 seconds while the service starts.</p>
+      <p>Samples: <a href="https://www.mvtec.com/company/research/datasets/mvtec-ad">MVTec AD</a>, via <a href="https://huggingface.co/datasets/Voxel51/mvtec-ad">Voxel51</a> · <a href="samples/LICENSE.txt">CC BY-NC-SA 4.0</a>. Original test images, unmodified.</p>
+    </footer>
+  </main>
+</body>
+</html>
